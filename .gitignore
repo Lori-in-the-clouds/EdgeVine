@@ -1,2 +1,6 @@
 
 .DS_Store
+
+mqtt-server/mosquitto/log/mosquitto.log
+
+mqtt-server/mosquitto/data/mosquitto.db
