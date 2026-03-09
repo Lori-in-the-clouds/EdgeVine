@@ -1,0 +1,129 @@
+1773077601: mosquitto version 2.1.2 starting
+1773077601: Config loaded from /mosquitto/config/mosquitto.conf.
+1773077601: Bridge support available.
+1773077601: Persistence support available.
+1773077601: TLS support available.
+1773077601: TLS-PSK support available.
+1773077601: Websockets support available.
+1773077601: Plugin builtin-security has registered to receive 'basic-auth' events.
+1773077601: Opening ipv4 listen socket on port 1883.
+1773077601: Opening ipv6 listen socket on port 1883.
+1773077601: mosquitto version 2.1.2 running
+1773077631: New connection from ::1:47804 on port 1883.
+1773077631: Client auto-747857D8-FDF7-0856-AB82-77133D5E1828 [::1:47804] disconnected: not authorised.
+1773077661: New connection from ::1:49658 on port 1883.
+1773077661: Client auto-831B4630-CB0D-E0D6-6A83-700635A2546B [::1:49658] disconnected: not authorised.
+1773077691: New connection from ::1:56356 on port 1883.
+1773077691: Client auto-FBE8C29C-FA45-E4B0-EA76-38D7A7825103 [::1:56356] disconnected: not authorised.
+1773077711: New connection from ::1:58686 on port 1883.
+1773077711: New client connected from ::1:58686 as auto-0DA0F7A0-9DCD-B0D1-7912-6572555204A3 (p4, c1, k60, u'arduino').
+1773077721: New connection from ::1:37538 on port 1883.
+1773077721: Client auto-7872DCEF-4159-46DC-53D3-12D8A110EFAB [::1:37538] disconnected: not authorised.
+1773077751: New connection from ::1:57854 on port 1883.
+1773077751: Client auto-C52E970B-2116-AC9A-0679-6CB0FC41D6E5 [::1:57854] disconnected: not authorised.
+1773077779: Client auto-0DA0F7A0-9DCD-B0D1-7912-6572555204A3 [::1:58686] disconnected.
+1773077781: New connection from ::1:53458 on port 1883.
+1773077781: Client auto-5E8A2688-98E5-610E-7BE7-C23463E724BA [::1:53458] disconnected: not authorised.
+1773077811: New connection from ::1:52624 on port 1883.
+1773077811: Client auto-B42A3B0F-FBBF-BB96-519A-DA993E36C293 [::1:52624] disconnected: not authorised.
+1773077836: New connection from ::1:33950 on port 1883.
+1773077836: New client connected from ::1:33950 as auto-D6F29F03-9A87-030C-2DB2-832FEEB551D7 (p4, c1, k60, u'arduino').
+1773077836: Client auto-D6F29F03-9A87-030C-2DB2-832FEEB551D7 [::1:33950] disconnected.
+1773077841: New connection from ::1:33956 on port 1883.
+1773077841: Client auto-740B240D-96D6-2DA8-689F-3DEF34D04656 [::1:33956] disconnected: not authorised.
+1773077850: New connection from ::1:60796 on port 1883.
+1773077850: New client connected from ::1:60796 as auto-1CC54F7E-9291-50D3-1911-64BD0B626179 (p4, c1, k60, u'arduino').
+1773077850: Client auto-1CC54F7E-9291-50D3-1911-64BD0B626179 [::1:60796] disconnected.
+1773077871: New connection from ::1:40068 on port 1883.
+1773077871: Client auto-1A4EF215-0256-C17A-A049-39BAD2547267 [::1:40068] disconnected: not authorised.
+1773077901: New connection from ::1:58746 on port 1883.
+1773077901: Client auto-40F67D88-BBF3-188C-25CD-750B8D5C470D [::1:58746] disconnected: not authorised.
+1773077928: New connection from ::1:35508 on port 1883.
+1773077928: New client connected from ::1:35508 as auto-B0CA41D1-C39D-6117-4104-2707729A572C (p4, c1, k60, u'arduino').
+1773077931: New connection from ::1:35522 on port 1883.
+1773077931: Client auto-5C02ECB5-C76C-C4AE-4A4C-2F271B504B30 [::1:35522] disconnected: not authorised.
+1773077933: New connection from ::1:35534 on port 1883.
+1773077933: New client connected from ::1:35534 as auto-FAE3CD1A-66F6-08A8-F072-5D82BF93F02D (p4, c1, k60, u'arduino').
+1773077933: Client auto-FAE3CD1A-66F6-08A8-F072-5D82BF93F02D [::1:35534] disconnected.
+1773077935: New connection from ::1:35536 on port 1883.
+1773077935: New client connected from ::1:35536 as auto-669A33B1-A0BD-A42C-8E58-7E767AD50D23 (p4, c1, k60, u'arduino').
+1773077935: Client auto-669A33B1-A0BD-A42C-8E58-7E767AD50D23 [::1:35536] disconnected.
+1773077936: New connection from ::1:43038 on port 1883.
+1773077936: New client connected from ::1:43038 as auto-912F491D-2685-94D5-1CDB-B6A048B68EE8 (p4, c1, k60, u'arduino').
+1773077936: Client auto-912F491D-2685-94D5-1CDB-B6A048B68EE8 [::1:43038] disconnected.
+1773077937: New connection from ::1:43042 on port 1883.
+1773077937: New client connected from ::1:43042 as auto-2B1612B5-0CF1-6650-DB87-F5B4339B1085 (p4, c1, k60, u'arduino').
+1773077937: Client auto-2B1612B5-0CF1-6650-DB87-F5B4339B1085 [::1:43042] disconnected.
+1773077938: New connection from ::1:43044 on port 1883.
+1773077938: New client connected from ::1:43044 as auto-E8B113E6-80E1-5A4F-95DA-51C5696FE028 (p4, c1, k60, u'arduino').
+1773077938: Client auto-E8B113E6-80E1-5A4F-95DA-51C5696FE028 [::1:43044] disconnected.
+1773077956: Client auto-B0CA41D1-C39D-6117-4104-2707729A572C [::1:35508] disconnected.
+1773077961: New connection from ::1:41704 on port 1883.
+1773077961: Client auto-A0666ED7-6988-610C-E7CB-A8D5A22E75B0 [::1:41704] disconnected: not authorised.
+1773077991: New connection from ::1:49266 on port 1883.
+1773077991: Client auto-8E97ADEA-72B4-5CF8-C2BA-10EC5FDCF197 [::1:49266] disconnected: not authorised.
+1773078022: New connection from ::1:46104 on port 1883.
+1773078022: Client auto-30E737B5-E11E-7193-0A7E-3BFB49334FF6 [::1:46104] disconnected: not authorised.
+1773078052: New connection from ::1:50540 on port 1883.
+1773078052: Client auto-ACBF8BF0-1902-D99F-AB2E-00E0283008D0 [::1:50540] disconnected: not authorised.
+1773078082: New connection from ::1:50772 on port 1883.
+1773078082: Client auto-D5784EEC-0953-CEA2-E2A4-04F41D82D1E8 [::1:50772] disconnected: not authorised.
+1773078112: New connection from ::1:51150 on port 1883.
+1773078112: Client auto-DD3258B2-DD14-A528-E0E6-378B35FC970B [::1:51150] disconnected: not authorised.
+1773078142: New connection from ::1:34990 on port 1883.
+1773078142: Client auto-F279CDA4-CE87-B9F6-8F37-83096307C3DF [::1:34990] disconnected: not authorised.
+1773078172: New connection from ::1:49916 on port 1883.
+1773078172: Client auto-F3842459-BAA5-A3D6-BB2E-9BA72C2C11B0 [::1:49916] disconnected: not authorised.
+1773078202: New connection from ::1:40302 on port 1883.
+1773078202: Client auto-2A617774-F008-A475-2EBE-3096F0584FEE [::1:40302] disconnected: not authorised.
+1773078232: New connection from ::1:34086 on port 1883.
+1773078232: Client auto-F07420D5-7BEE-35DF-B041-FA1D362763C2 [::1:34086] disconnected: not authorised.
+1773078262: New connection from ::1:36930 on port 1883.
+1773078262: Client auto-27A9C5DE-2D89-AC3A-2D92-C37407A80E43 [::1:36930] disconnected: not authorised.
+1773078292: New connection from ::1:44408 on port 1883.
+1773078292: Client auto-97E84824-909B-B16E-8CD5-C3E1C659147F [::1:44408] disconnected: not authorised.
+1773078322: New connection from ::1:35152 on port 1883.
+1773078322: Client auto-F3DE7AB6-C744-779F-B052-3CD8391BDF44 [::1:35152] disconnected: not authorised.
+1773078352: New connection from ::1:56560 on port 1883.
+1773078352: Client auto-D0B468B4-8F40-39BC-30F1-DAE3E73946ED [::1:56560] disconnected: not authorised.
+1773078382: New connection from ::1:46364 on port 1883.
+1773078382: Client auto-6F92873A-068A-8EFC-F1EB-1FF4BB19F841 [::1:46364] disconnected: not authorised.
+1773078412: New connection from ::1:41458 on port 1883.
+1773078412: Client auto-04DECD6C-710F-8C90-DC36-0B728A6194D4 [::1:41458] disconnected: not authorised.
+1773078442: New connection from ::1:50862 on port 1883.
+1773078442: Client auto-163CD453-FBC5-1B88-8080-DEA14ECF30CD [::1:50862] disconnected: not authorised.
+1773078472: New connection from ::1:42288 on port 1883.
+1773078472: Client auto-D02A8EE5-C48A-3682-C6B7-57A3D3D5F28A [::1:42288] disconnected: not authorised.
+1773078502: New connection from ::1:46710 on port 1883.
+1773078502: Client auto-F129CAA7-0996-F6F1-48F8-1B44E31DDF15 [::1:46710] disconnected: not authorised.
+1773078532: New connection from ::1:45626 on port 1883.
+1773078532: Client auto-C9B0FBD5-90B7-F85A-9443-08F2FD3C7F1D [::1:45626] disconnected: not authorised.
+1773078551: mosquitto version 2.1.2 terminating
+1773078551: Saving in-memory database to /mosquitto/data//mosquitto.db.
+1773082546: mosquitto version 2.1.2 starting
+1773082546: Config loaded from /mosquitto/config/mosquitto.conf.
+1773082546: Bridge support available.
+1773082546: Persistence support available.
+1773082546: TLS support available.
+1773082546: TLS-PSK support available.
+1773082546: Websockets support available.
+1773082546: Plugin builtin-security has registered to receive 'basic-auth' events.
+1773082546: Opening ipv4 listen socket on port 1883.
+1773082546: Opening ipv6 listen socket on port 1883.
+1773082546: mosquitto version 2.1.2 running
+1773082576: New connection from ::1:33744 on port 1883.
+1773082576: Client auto-5DE83C2A-C19E-FFF2-A8C4-80FC4F4950BE [::1:33744] disconnected: not authorised.
+1773082583: New connection from ::1:33750 on port 1883.
+1773082583: New client connected from ::1:33750 as auto-8872B86F-9DB1-4B07-85B4-4F66177BE383 (p4, c1, k60, u'arduino').
+1773082606: New connection from ::1:38168 on port 1883.
+1773082606: Client auto-81605847-84E9-8FE5-3773-97671EF4DAD7 [::1:38168] disconnected: not authorised.
+1773082615: New connection from 192.168.65.1:62840 on port 1883.
+1773082615: New client connected from 192.168.65.1:62840 as arduino1-f412fa651f54 (p4, c1, k15, u'arduino').
+1773082637: New connection from ::1:45408 on port 1883.
+1773082637: Client auto-9A9294CA-F39F-D00D-4508-30F71D85B266 [::1:45408] disconnected: not authorised.
+1773082667: New connection from ::1:58356 on port 1883.
+1773082667: Client auto-782A0EA9-70F8-FA02-E41E-773BE082D1E9 [::1:58356] disconnected: not authorised.
+1773082697: New connection from ::1:58572 on port 1883.
+1773082697: Client auto-41F14929-052D-DBAB-FC25-C786A5FCD677 [::1:58572] disconnected: not authorised.
+1773082727: New connection from ::1:48214 on port 1883.
+1773082727: Client auto-C4E779BD-4686-4D36-73E0-A28130D6E269 [::1:48214] disconnected: not authorised.
