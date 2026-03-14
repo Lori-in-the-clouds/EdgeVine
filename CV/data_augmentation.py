@@ -206,7 +206,7 @@ class DataAugmentation:
         self.clean_dataset()
         for i in range(len(self.filters)):
             print(f"➡️ The enhancement filter was applied {i + 1}/{len(self.filters)}...")
-            for subdir in ['test', 'train', 'valid']:
+            for subdir in ['train']:
                 dir_path = self.dataset_path / subdir
                 self.add_items_in_dataset(str(dir_path), i)
             print(f"✅ Filter {i + 1} applied at all subdirectories")
@@ -224,24 +224,30 @@ def augmentation_grape_dataset(dataset_path):
         check_each_transform=True           
     )
     
+    # Aggiungi HorizontalFlip a tutti i filtri o come base comune
+    common_transforms = [A.HorizontalFlip(p=0.5)]
+
     sunlight_filter = A.Compose([
+        *common_transforms,
+        # Sostituisci height e width con size
+        A.RandomSizedCrop(min_max_height=(320, 512), size=(512, 512), p=0.3),
         A.RandomBrightnessContrast(brightness_limit=(0.1, 0.25), contrast_limit=(0.1, 0.2), p=1.0),
         A.ColorJitter(brightness=0.15, contrast=0.15, saturation=0.2, hue=0.02, p=0.8),
         A.Sharpen(alpha=(0.1, 0.3), lightness=(0.5, 1.0), p=0.5),
     ], bbox_params=bbox_params)
 
     shadow_filter = A.Compose([
+        *common_transforms,
+        # Simula nuvole improvvise o zone molto fitte
         A.RandomBrightnessContrast(brightness_limit=(-0.3, -0.1), contrast_limit=(-0.1, 0.0), p=1.0),
         A.HueSaturationValue(hue_shift_limit=5, sat_shift_limit=20, val_shift_limit=20, p=0.8),
-        A.MultiplicativeNoise(multiplier=(0.95, 1.05), p=0.3), # Rumore più sottile
-        A.GaussianBlur(blur_limit=(3, 5), p=0.3), # GaussianBlur è più naturale del Blur semplice
+        A.RandomShadow(shadow_roi=(0, 0.5, 1, 1), num_shadows_lower=1, num_shadows_upper=2, p=0.4), # Fondamentale in vigna!
     ], bbox_params=bbox_params)
 
     wind_filter = A.Compose([
-        A.MotionBlur(blur_limit=(3, 7), p=1.0), # Limite ridotto: la foglia deve restare riconoscibile
-        A.RandomGamma(gamma_limit=(90, 110), p=0.5),
-        A.ISONoise(intensity=(0.05, 0.15), p=0.4), # ISO noise più basso (tipico di sensori moderni)
-        A.Affine(rotate=(-8, 8), translate_percent={"x": (-0.05, 0.05)}, p=0.5), # Rotazione leggermente aumentata
+        *common_transforms,
+        A.MotionBlur(blur_limit=(3, 7), p=1.0), 
+        A.Affine(rotate=(-10, 10), scale=(0.9, 1.1), translate_percent={"x": (-0.05, 0.05)}, p=0.5),
     ], bbox_params=bbox_params)
 
     filter_list = [sunlight_filter, shadow_filter, wind_filter]
@@ -250,6 +256,6 @@ def augmentation_grape_dataset(dataset_path):
 
 
 if __name__ == '__main__':
-    augmentation_grape_dataset('/Users/lorenzodimaio/Documents/Iot_project/CV/datasets/grape-leaf-disease-dataset')
+    augmentation_grape_dataset('/Users/lorenzodimaio/Documents/Iot_project/CV/datasets/grape_sum')
    
 

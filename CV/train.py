@@ -24,7 +24,7 @@ def export(model,file_yaml,imgsz=320):
     )
     
 
-def train(path_yaml,output_dir,name_dir, epochs=20, imgsz=640, batch=32,patience=10):
+def train(path_yaml,output_dir,name_dir, epochs=150, imgsz=512, batch=32,patience=30):
 
     #best_weights = '/Users/lorenzodimaio/Documents/Iot_project/CV/grape_counting/train_grape_640_refinement/weights/best.pt'
 
@@ -34,22 +34,25 @@ def train(path_yaml,output_dir,name_dir, epochs=20, imgsz=640, batch=32,patience
     #model = YOLO('yolov8n.pt') 
     device = get_device()
      
-    '''
+    
     model.train(
         data=path_yaml, 
-        imgsz=imgsz, 
-        epochs=epochs, 
-        batch=batch,
-        device = device,
+        imgsz=imgsz,     
+        epochs=150,        
+        batch=batch,       
+        patience=patience,       
+        device=device,
         project=output_dir,
-        patience=patience,
         name=name_dir,
-        optimizer='SGD',
-        conf=0.25,    # Ignora le predizioni "deboli" (meno lavoro per NMS)
-        max_det=150,  # Non processare più di 100 grappoli per foto
-        iou=0.45,     # Aiuta a fondere i box sovrapposti più velocemente
-        warmup_epochs=3.0,
+        optimizer='AdamW', 
+        lr0=0.001,        
+        cos_lr=True,      
+        label_smoothing=0.1, 
+        overlap_mask=True, 
+        cache=True,
+        max_det=100
         )
+
     '''
     model.train(
         data=path_yaml, 
@@ -69,16 +72,21 @@ def train(path_yaml,output_dir,name_dir, epochs=20, imgsz=640, batch=32,patience
         iou=0.45,
         cache=True        
     )
+    '''
     
 
 if __name__ == '__main__':
    #train('/Users/lorenzodimaio/Documents/Iot_project/CV/grape_counting/grapes_dataset/data.yaml','/Users/lorenzodimaio/Documents/Iot_project/CV/grape_counting',epochs=20)
 
-    train(  '/Users/lorenzodimaio/Documents/Iot_project/CV/datasets/grape-leaf-disease-dataset/data.yaml',
-            output_dir = '/Users/lorenzodimaio/Documents/Iot_project/CV/leaf_disease',
-            name_dir = 'train',
-            epochs=100,
-            batch=32,
-            patience=20,
-            imgsz=416
-        )
+    #train('/Users/lorenzodimaio/Documents/Iot_project/CV/datasets/grape_sum/data.yaml',output_dir = '/Users/lorenzodimaio/Documents/Iot_project/CV/leaf_disease',name_dir = 'train',)
+    
+    # Carica l'ultimo check-point salvato
+    model = YOLO('/Users/lorenzodimaio/Documents/Iot_project/CV/leaf_disease/train/weights/last.pt')
+
+    # Riprendi il training
+    model.train(resume=True,batch=16)
+
+
+    
+
+    
