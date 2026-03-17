@@ -225,6 +225,7 @@ def augmentation_grape_dataset(dataset_path):
     )
     
     # Aggiungi HorizontalFlip a tutti i filtri o come base comune
+    '''
     common_transforms = [A.HorizontalFlip(p=0.5)]
 
     sunlight_filter = A.Compose([
@@ -249,6 +250,47 @@ def augmentation_grape_dataset(dataset_path):
         A.MotionBlur(blur_limit=(3, 7), p=1.0), 
         A.Affine(rotate=(-10, 10), scale=(0.9, 1.1), translate_percent={"x": (-0.05, 0.05)}, p=0.5),
     ], bbox_params=bbox_params)
+    '''
+
+    common_transforms = [
+    A.HorizontalFlip(p=0.5),
+    A.VerticalFlip(p=0.3), # Utile per le foglie che possono avere orientamenti vari
+    A.RandomRotate90(p=0.5)
+    ]
+
+    # 1. SUNLIGHT FILTER (Ottimizzato per non "bruciare" i dettagli delle macchie)
+    sunlight_filter = A.Compose([
+        *common_transforms,
+        # Ridotto il contrasto massimo per non nascondere le macchie chiare su foglie chiare
+        A.RandomBrightnessContrast(brightness_limit=(0.05, 0.2), contrast_limit=(0.05, 0.15), p=1.0),
+        # ColorJitter più conservativo sulla tonalità (Hue) per non falsificare la malattia
+        A.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.15, hue=0.01, p=0.8),
+        # Sharpen è vitale per evidenziare i bordi delle lesioni necrotiche
+        A.Sharpen(alpha=(0.2, 0.4), lightness=(0.5, 1.0), p=0.5),
+        # Aggiunto un leggero rumore per simulare sensori IoT economici
+        A.GaussNoise(var_limit=(10, 30), p=0.3)
+    ], bbox_params=bbox_params)
+
+    # 2. SHADOW FILTER (Simula zone d'ombra dove i colori sono meno saturi)
+    shadow_filter = A.Compose([
+        *common_transforms,
+        # Scuriamo leggermente ma aumentiamo la saturazione del verde (tipico delle zone in ombra)
+        A.RandomBrightnessContrast(brightness_limit=(-0.25, -0.1), contrast_limit=(-0.1, 0.05), p=1.0),
+        A.HueSaturationValue(hue_shift_limit=2, sat_shift_limit=15, val_shift_limit=15, p=0.8),
+        # RandomShadow posizionato strategicamente per non coprire l'intera foglia
+        A.RandomShadow(shadow_roi=(0, 0, 1, 1), num_shadows_lower=1, num_shadows_upper=3, shadow_dimension=5, p=0.5),
+    ], bbox_params=bbox_params)
+
+    # 3. WIND & DISTORTION FILTER (Ottimizzato per mantenere leggibili le macchie anche se mosse)
+    wind_filter = A.Compose([
+        *common_transforms,
+        # MotionBlur ridotto: se troppo forte, la malattia diventa indistinguibile dallo sfondo
+        A.MotionBlur(blur_limit=(3, 5), p=0.7), 
+        # Affine per simulare la foglia che si piega col vento
+        A.Affine(rotate=(-15, 15), scale=(0.85, 1.15), shear=(-5, 5), p=0.5),
+        # GridDistortion simula la superficie non piana della foglia
+        A.GridDistortion(p=0.3)
+    ], bbox_params=bbox_params)
 
     filter_list = [sunlight_filter, shadow_filter, wind_filter]
     dt = DataAugmentation(filter_list,dataset_path,kpt=False,bbox=True)
@@ -256,6 +298,6 @@ def augmentation_grape_dataset(dataset_path):
 
 
 if __name__ == '__main__':
-    augmentation_grape_dataset('/Users/lorenzodimaio/Documents/Iot_project/CV/datasets/grape_sum')
+    augmentation_grape_dataset('/Users/lorenzodimaio/Documents/Iot_project/CV/datasets/grape-leaf-disease_dataset')
    
 
