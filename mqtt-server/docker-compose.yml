@@ -1,6 +1,6 @@
 services:
   mosquitto:
-    image: eclipse-mosquitto:latest
+    image: eclipse-mosquitto:2
     container_name: mosquitto
     ports:
       - "1883:1883"
@@ -10,7 +10,82 @@ services:
       - ./mosquitto/log:/mosquitto/log
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -u arduino -P PASSWORD_MQTT -t '$SYS/broker/uptime' -C 1 || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "mosquitto_sub -h localhost -p 1883 -u arduino -P mosquitto -t '$$SYS/broker/uptime' -C 1 || exit 1"
+        ]
       interval: 30s
       timeout: 10s
       retries: 3
+
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_USER: sensore_user
+      POSTGRES_PASSWORD: sensore_password
+      POSTGRES_DB: sensori
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sensore_user -d sensori || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  mqtt-subscriber:
+    build: ./mqtt-subscriber
+    container_name: mqtt-subscriber
+    environment:
+      MQTT_BROKER: mosquitto
+      MQTT_PORT: 1883
+      MQTT_TOPICS: zone/+/sensor/+,sensori/+/+
+      MQTT_USERNAME: arduino
+      MQTT_PASSWORD: mosquitto
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: sensori
+      POSTGRES_USER: sensore_user
+      POSTGRES_PASSWORD: sensore_password
+      VINEYARD_ID: 1
+      VINEYARD_NAME: Demo Vineyard
+      VINEYARD_OWNER: EdgeVine
+      VINEYARD_ALTITUDE: 200
+      VINEYARD_LATITUDE: 45.000000
+      VINEYARD_LONGITUDE: 11.000000
+      AUTO_CREATE_VINEYARD: "true"
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  vineyard-dashboard:
+    build: ../vineyard-dashboard
+    container_name: vineyard-dashboard
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: sensori
+      POSTGRES_USER: sensore_user
+      POSTGRES_PASSWORD: sensore_password
+      ZONE_STALE_MINUTES: 30
+      ZONE_TEMPERATURE_MIN: 5
+      ZONE_TEMPERATURE_MAX: 35
+      ZONE_HUMIDITY_MIN: 35
+      ZONE_MOISTURE_MIN: 250
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "${DASHBOARD_PORT:-3001}:3000"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
