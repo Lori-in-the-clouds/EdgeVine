@@ -1,6 +1,7 @@
 #include <DHT.h>
 #include <WiFiS3.h>
 #include <PubSubClient.h>
+#include "Arduino_LED_Matrix.h"
 
 #define DHTPIN 2
 #define DHTTYPE DHT22
@@ -16,6 +17,7 @@ const char*   MQTT_PASSWD = "mosquitto";
 WiFiClient espClient;
 PubSubClient client(espClient);
 DHT dht(DHTPIN, DHTTYPE);
+ArduinoLEDMatrix matrix;
 
 void connectWiFi() {
   WiFi.begin(WIFI_SSID, WIFI_PASSWD);
@@ -53,6 +55,17 @@ void connectMQTT() {
 
 int mosture = 0;
 
+uint8_t cuore[8][12] = {
+  {0,0,1,1,0,0,0,0,1,1,0,0},
+  {0,1,1,1,1,1,1,1,1,1,1,0},
+  {1,1,1,1,1,1,1,1,1,1,1,1},
+  {0,1,1,1,1,1,1,1,1,1,1,0},
+  {0,0,1,1,1,1,1,1,1,1,0,0},
+  {0,0,0,1,1,1,1,1,1,0,0,0},
+  {0,0,0,0,1,1,1,1,0,0,0,0},
+  {0,0,0,0,0,1,1,0,0,0,0,0}
+};
+
 void setup() {
   pinMode(A0, OUTPUT);
   pinMode(A1, INPUT);
@@ -62,6 +75,8 @@ void setup() {
   dht.begin();
   connectWiFi();
   client.setServer(MQTT_BROKER, MQTT_PORT);
+  matrix.begin();
+  matrix.renderBitmap(cuore, 8, 12);
 }
 
 void loop() {
@@ -82,17 +97,18 @@ void loop() {
   digitalWrite(A0, LOW);
 
   Serial.print("Mosture: ");
-  Serial.println(mosture);
+  Serial.print(mosture);
+  Serial.println("%");
   char valueStr[16];
   snprintf(valueStr, sizeof(valueStr), "%d", mosture);
-  client.publish("sensori/arduino1/mosture", valueStr, true);
+  client.publish("zone/1/sensor/mosture", valueStr, true);
 
   float h = dht.readHumidity();
   snprintf(valueStr, sizeof(valueStr), "%.2f", h);
-  client.publish("sensori/arduino1/humidity", valueStr, true);
+  client.publish("zone/1/sensor/humidity", valueStr, true);
   float t = dht.readTemperature();
   snprintf(valueStr, sizeof(valueStr), "%.2f", t);
-  client.publish("sensori/arduino1/temperature", valueStr, true);
+  client.publish("zone/1/sensor/temperature", valueStr, true);
 
   Serial.print("Umidità: ");
   Serial.print(h);
