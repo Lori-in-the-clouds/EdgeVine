@@ -1,0 +1,608 @@
+:root {
+  color-scheme: light;
+  --bg: #f5f0e7;
+  --bg-alt: #ece3d4;
+  --surface: #fffaf2;
+  --surface-strong: #fffef9;
+  --border: rgba(83, 63, 37, 0.14);
+  --text: #2f2418;
+  --muted: #73624d;
+  --leaf: #4f6d4b;
+  --leaf-strong: #365333;
+  --amber: #b77a2f;
+  --amber-soft: rgba(183, 122, 47, 0.14);
+  --red: #a94d42;
+  --red-soft: rgba(169, 77, 66, 0.14);
+  --slate: #65707a;
+  --slate-soft: rgba(101, 112, 122, 0.14);
+  --shadow: 0 24px 70px rgba(72, 50, 21, 0.1);
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius-md: 16px;
+  --radius-sm: 12px;
+  --max-width: 1180px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(111, 153, 95, 0.16), transparent 30%),
+    radial-gradient(circle at top right, rgba(183, 122, 47, 0.12), transparent 28%),
+    linear-gradient(180deg, var(--bg) 0%, #f3eadc 100%);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.5), transparent 45%),
+    linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.2)),
+    linear-gradient(180deg, var(--bg) 0%, #f3eadc 100%);
+  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  line-height: 1.5;
+}
+
+.page-shell {
+  width: min(calc(100% - 2rem), var(--max-width));
+  margin: 0 auto;
+  padding: 2rem 0 3rem;
+}
+
+.hero-panel,
+.panel,
+.empty-panel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 250, 242, 0.96));
+  box-shadow: var(--shadow);
+}
+
+.hero-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(260px, 0.9fr);
+  gap: 1.5rem;
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.hero-copy,
+.hero-stats,
+.dashboard-grid,
+.section-heading {
+  display: grid;
+  gap: 1rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--leaf-strong);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.hero-panel h1,
+.panel h2,
+.empty-panel h1 {
+  margin: 0;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.hero-panel h1 {
+  font-size: clamp(2.3rem, 5vw, 4.6rem);
+  max-width: 12ch;
+}
+
+.hero-text {
+  margin: 0;
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: 1.02rem;
+}
+
+.hero-stats {
+  align-content: end;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.hero-stat-card {
+  padding: 1.25rem;
+  border: 1px solid rgba(83, 63, 37, 0.1);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.hero-stat-value {
+  display: block;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.hero-stat-label {
+  display: block;
+  margin-top: 0.45rem;
+  color: var(--muted);
+}
+
+.dashboard-grid {
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  align-items: start;
+}
+
+.detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.detail-main,
+.detail-side {
+  min-width: 0;
+}
+
+.detail-side {
+  display: grid;
+  gap: 1rem;
+  position: sticky;
+  top: 1.5rem;
+}
+
+.panel {
+  padding: 1.5rem;
+}
+
+.panel-form {
+  position: sticky;
+  top: 1.5rem;
+}
+
+.section-heading {
+  margin-bottom: 1rem;
+}
+
+.section-heading h2 {
+  font-size: 1.7rem;
+}
+
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.back-link,
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(83, 63, 37, 0.14);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+  font-weight: 700;
+}
+
+.back-link:hover,
+.button-link:hover {
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.empty-panel {
+  padding: 2rem;
+  display: grid;
+  gap: 1rem;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.vineyard-card,
+.vineyard-empty-state {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(255, 250, 242, 0.96));
+  box-shadow: var(--shadow);
+}
+
+.vineyard-card {
+  padding: 1.5rem;
+}
+
+.vineyard-card__header,
+.vineyard-card__footer {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.vineyard-card__footer {
+  margin-top: 1.25rem;
+  align-items: center;
+}
+
+.vineyard-card__meta,
+.vineyard-form__hint,
+.vineyard-zone-card__note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.vineyard-eyebrow {
+  margin: 0 0 0.35rem;
+  color: var(--leaf-strong);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.vineyard-card h1,
+.vineyard-card h2,
+.vineyard-empty-state h3 {
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.vineyard-card h1 {
+  font-size: clamp(2rem, 3vw, 3.2rem);
+}
+
+.vineyard-card h2 {
+  font-size: 1.45rem;
+}
+
+.vineyard-summary-grid,
+.vineyard-detail__meta,
+.vineyard-zone-card__metrics {
+  display: grid;
+  gap: 1rem;
+}
+
+.vineyard-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 1.4rem 0 0;
+}
+
+.vineyard-summary-grid div,
+.vineyard-detail__meta div,
+.vineyard-zone-card__metrics div {
+  padding: 0.9rem 1rem;
+  border: 1px solid rgba(83, 63, 37, 0.1);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.vineyard-summary-grid dt,
+.vineyard-detail__meta span,
+.vineyard-zone-card__metrics span {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.vineyard-summary-grid dd,
+.vineyard-detail__meta strong,
+.vineyard-zone-card__metrics strong {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.vineyard-detail {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.vineyard-detail__hero {
+  padding: 1.8rem;
+}
+
+.vineyard-detail__meta {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1.35rem;
+}
+
+.vineyard-zone-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.2rem;
+}
+
+.vineyard-zone-card__metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 1.35rem;
+}
+
+.vineyard-zone-card__footer {
+  flex-direction: column;
+  align-items: flex-start;
+  margin-top: 1rem;
+  gap: 0.4rem;
+}
+
+.vineyard-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+.vineyard-create-form {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.vineyard-form {
+  display: grid;
+  gap: 1.2rem;
+}
+
+.vineyard-form__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.vineyard-form__grid--single {
+  grid-template-columns: 1fr;
+}
+
+.vineyard-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.vineyard-field span {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.vineyard-field input {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border: 1px solid rgba(83, 63, 37, 0.18);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    transform 140ms ease;
+}
+
+.vineyard-field input::placeholder {
+  color: rgba(115, 98, 77, 0.62);
+}
+
+.vineyard-field input:focus {
+  outline: none;
+  border-color: rgba(79, 109, 75, 0.55);
+  box-shadow: 0 0 0 4px rgba(79, 109, 75, 0.14);
+  transform: translateY(-1px);
+}
+
+.vineyard-field--full {
+  grid-column: 1 / -1;
+}
+
+.vineyard-form__footer {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vineyard-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0.75rem 1.15rem;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--leaf), var(--leaf-strong));
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 16px 34px rgba(54, 83, 51, 0.22);
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    background 140ms ease;
+}
+
+.vineyard-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 18px 40px rgba(54, 83, 51, 0.28);
+}
+
+.vineyard-button--secondary {
+  background: linear-gradient(180deg, #fffdf8, #f4ead9);
+  color: var(--text);
+  border-color: rgba(83, 63, 37, 0.14);
+  box-shadow: none;
+}
+
+.vineyard-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.42rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.84rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.vineyard-status-pill__dot {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.38);
+}
+
+.vineyard-status-pill--healthy {
+  color: var(--leaf-strong);
+  background: rgba(79, 109, 75, 0.14);
+  border-color: rgba(79, 109, 75, 0.18);
+}
+
+.vineyard-status-pill--warning {
+  color: #8b5a16;
+  background: var(--amber-soft);
+  border-color: rgba(183, 122, 47, 0.18);
+}
+
+.vineyard-status-pill--offline {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: rgba(169, 77, 66, 0.18);
+}
+
+.vineyard-status-pill--no-data {
+  color: var(--slate);
+  background: var(--slate-soft);
+  border-color: rgba(101, 112, 122, 0.18);
+}
+
+.vineyard-empty-state {
+  display: grid;
+  gap: 1rem;
+  justify-items: start;
+  padding: 1.8rem;
+  background:
+    radial-gradient(circle at top left, rgba(111, 153, 95, 0.14), transparent 40%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 250, 242, 0.98));
+}
+
+.vineyard-empty-state__orb {
+  position: absolute;
+  right: -40px;
+  top: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(111, 153, 95, 0.2), transparent 66%);
+}
+
+.vineyard-empty-state__icon {
+  display: grid;
+  place-items: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 1rem;
+  color: var(--leaf-strong);
+  background: rgba(79, 109, 75, 0.12);
+}
+
+.vineyard-empty-state__icon svg {
+  width: 1.8rem;
+  height: 1.8rem;
+}
+
+.vineyard-empty-state__content {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.vineyard-empty-state__content p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 46ch;
+}
+
+.vineyard-empty-state__action {
+  position: relative;
+  z-index: 1;
+}
+
+@media (max-width: 900px) {
+  .hero-panel,
+  .dashboard-grid,
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-form {
+    position: static;
+  }
+
+  .detail-side {
+    position: static;
+  }
+
+  .vineyard-list,
+  .vineyard-zone-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vineyard-summary-grid,
+  .vineyard-detail__meta,
+  .vineyard-zone-card__metrics,
+  .vineyard-form__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .page-shell {
+    width: min(calc(100% - 1rem), var(--max-width));
+    padding-top: 1rem;
+  }
+
+  .vineyard-card,
+  .vineyard-empty-state,
+  .vineyard-detail__hero,
+  .hero-panel,
+  .panel,
+  .empty-panel {
+    padding: 1.2rem;
+    border-radius: 22px;
+  }
+
+  .vineyard-card__header,
+  .vineyard-card__footer,
+  .vineyard-form__footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vineyard-summary-grid,
+  .vineyard-detail__meta,
+  .vineyard-zone-card__metrics,
+  .vineyard-form__grid,
+  .hero-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .vineyard-button {
+    width: 100%;
+  }
+}
