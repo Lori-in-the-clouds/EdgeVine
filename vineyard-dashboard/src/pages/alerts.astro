@@ -4,16 +4,7 @@ import { AlertsView } from '../components/alerts/AlertsView';
 ---
 
 <MasterLayout title="Alerts & Network">
-  <div class="max-w-[1400px] mx-auto">
-    <header class="mb-6 mt-2">
-      <h1 class="text-3xl font-manrope font-bold text-on-surface">
-        Network & Alerts
-      </h1>
-      <p class="text-on-surface-variant font-inter mt-1">
-        Regional heatmap monitoring and system logs
-      </p>
-    </header>
-    
+  <div class="relative w-full h-[calc(100vh-120px)] rounded-[2.5rem] overflow-hidden">
     <AlertsView client:only="react" />
   </div>
 </MasterLayout>
