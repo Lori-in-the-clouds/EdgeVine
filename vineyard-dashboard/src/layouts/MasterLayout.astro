@@ -1,0 +1,63 @@
+---
+import '../styles/global.css';
+import 'leaflet/dist/leaflet.css';
+import { Header } from '../components/common/Header';
+import { Sidebar } from '../components/common/Sidebar';
+
+export interface Props {
+  title: string;
+  hideHeader?: boolean;
+  hideSearch?: boolean;
+  hideSidebar?: boolean;
+}
+
+const { title, hideHeader = false, hideSearch = false, hideSidebar = false } = Astro.props;
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title} | EdgeVine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-background min-h-screen font-inter">
+    <script is:inline>
+      // Zero-Flicker Identity Sync
+      (function() {
+        try {
+          const saved = localStorage.getItem('edgevine_profile');
+          if (saved) {
+            const data = JSON.parse(saved);
+            const sync = () => {
+              const nameEl = document.getElementById('header-profile-name');
+              const photoEl = document.getElementById('header-profile-photo');
+              if (nameEl && data.name) nameEl.textContent = data.name;
+              if (photoEl && data.photo) {
+                photoEl.src = data.photo;
+                photoEl.style.opacity = '1';
+              }
+              if (nameEl && photoEl) return true;
+              return false;
+            };
+            if (!sync()) {
+              const interval = setInterval(() => { if (sync()) clearInterval(interval); }, 5);
+              setTimeout(() => clearInterval(interval), 2000);
+            }
+          }
+        } catch (e) {}
+      })();
+    </script>
+    {!hideSidebar && <Sidebar client:load initialPath={Astro.url.pathname} />}
+    
+    <div class={`main-content min-h-screen ${hideSidebar ? 'ml-0' : 'ml-72'} flex flex-col bg-background transition-all duration-500`}>
+      { !hideHeader && <Header client:load hideSearch={hideSearch} /> }
+      <main class="flex-1 mx-4 mb-4 overflow-hidden relative rounded-2xl">
+        <slot />
+      </main>
+    </div>
+  </body>
+</html>

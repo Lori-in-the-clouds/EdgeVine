@@ -1,0 +1,27 @@
+
+> vineyard-dashboard@0.1.0 build
+> astro build
+
+17:07:04 [@astrojs/node] Enabling sessions with filesystem storage
+17:07:04 [types] Generated 15ms
+17:07:04 [build] output: "server"
+17:07:04 [build] mode: "server"
+17:07:04 [build] directory: /Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/dist/
+17:07:04 [build] adapter: @astrojs/node
+17:07:04 [build] Collecting build info...
+17:07:04 [build] ✓ Completed in 39ms.
+17:07:04 [build] Building server entrypoints...
+17:07:05 [vite] ✓ built in 245ms
+17:07:05 [WARN] [vite] "Settings" is imported from external module "lucide-react" but never used in "src/components/common/Sidebar.tsx".
+17:07:05 [vite] ✓ built in 500ms
+17:07:06 [ERROR] [vite] ✗ Build failed in 730ms
+[vite]: Rollup failed to resolve import "react-is" from "/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/node_modules/recharts/es6/util/ReactUtils.js".
+This is most likely unintended because it can break your application at runtime.
+If you do want to externalize this module explicitly add it to
+`build.rollupOptions.external`
+  Stack trace:
+    at viteLog (file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/node_modules/vite/dist/node/chunks/config.js:33639:57)
+    at onwarn (file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/node_modules/@vitejs/plugin-react/dist/index.js:76:7)
+    at onRollupLog (file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/node_modules/vite/dist/node/chunks/config.js:33668:63)
+    at file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/node_modules/rollup/dist/es/shared/node-entry.js:21369:32
+    at ModuleLoader.handleInvalidResolvedId (file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/node_modules/rollup/dist/es/shared/node-entry.js:22108:26)

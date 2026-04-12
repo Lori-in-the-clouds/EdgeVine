@@ -1,13 +1,22 @@
+# Usa l'immagine ufficiale di Node.js
 FROM node:22-alpine
 
+# Imposta la cartella di lavoro nel container
 WORKDIR /app
 
+# Copia i file delle dipendenze
+# Nota: assicurati di avere eseguito 'npm install' sul Mac prima, 
+# così il package-lock.json è aggiornato con Leaflet
 COPY package.json package-lock.json ./
-RUN npm ci
 
+# Installa le dipendenze
+RUN npm install --legacy-peer-deps
+
+# Copia il resto del codice del progetto
 COPY . .
-RUN npm run build
 
-EXPOSE 3000
+# Esponi la porta di Astro (default 4321)
+EXPOSE 4321
 
-CMD ["npm", "start"]
+# Comando per avviare Astro in modalità sviluppo con accesso esterno
+CMD ["npm", "run", "dev", "--", "--host"]

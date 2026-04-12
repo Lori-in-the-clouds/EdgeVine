@@ -1,0 +1,50 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: ['./src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}'],
+  theme: {
+    extend: {
+      colors: {
+        primary: '#006c0c',
+        'on-primary': '#ffffff',
+        'primary-container': '#1c871e',
+        'on-primary-container': '#f8fff0',
+        'primary-fixed-dim': '#77dd6a',
+        'on-primary-fixed': '#002201',
+        background: '#f8f9fa',
+        'on-background': '#191c1d',
+        surface: '#f8f9fa',
+        'surface-bright': '#f8f9fa',
+        'surface-dim': '#d9dadb',
+        'surface-container-lowest': '#ffffff',
+        'surface-container-low': '#f3f4f5',
+        'surface-container': '#edeeef',
+        'surface-container-high': '#e7e8e9',
+        'surface-container-highest': '#e1e3e4',
+        'surface-variant': '#e1e3e4',
+        'on-surface': '#191c1d',
+        'on-surface-variant': '#3f4a3b',
+        secondary: '#555f6d',
+        'secondary-container': '#d6e0f1',
+        'on-secondary-container': '#596372',
+        tertiary: '#a52a66',
+        'tertiary-container': '#c5447f',
+        'on-tertiary-container': '#fffbff',
+        error: '#ba1a1a',
+        'error-container': '#ffdad6',
+        'on-error-container': '#93000a',
+        outline: '#6f7a6a',
+        'outline-variant': '#becab7',
+        'forest-green': '#228B22',
+        terraforge: '#228B22',
+      },
+      fontFamily: {
+        manrope: ['Manrope', 'sans-serif'],
+        inter: ['Inter', 'sans-serif'],
+      },
+      boxShadow: {
+        'ambient': '0 20px 40px rgba(0, 34, 1, 0.06)',
+      }
+    },
+  },
+  plugins: [],
+}

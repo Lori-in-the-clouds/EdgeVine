@@ -1,0 +1,29 @@
+---
+import MasterLayout from '../layouts/MasterLayout.astro';
+import { DashboardContainer } from '../components/dashboard/DashboardContainer';
+
+// Props passed if needs SSR or left to fetch inside react component.
+---
+
+<MasterLayout title="Dashboard Map-First | EdgeVine">
+  <div class="absolute inset-0 overflow-hidden w-full h-full bg-stone-900 rounded-[2rem] border border-white/5">
+    
+    {/* Full Dashboard Interface (Container handles Map + Dynamic Overlays) */}
+    <DashboardContainer client:only="react" />
+      
+    {/* Pixel-Perfect Edit Vineyard Button (Floating outside the map container context) */}
+    <a 
+      href="/edit"
+      class="absolute bottom-10 right-10 z-[3000] flex items-center gap-4 bg-[#1B4332]/90 backdrop-blur-3xl text-white px-8 py-5 rounded-2xl shadow-2xl hover:bg-[#2d5a44] hover:scale-105 active:scale-95 transition-all duration-300 border border-white/10 group overflow-hidden"
+    >
+        <div class="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="opacity-90 group-hover:rotate-12 transition-transform text-[#228B22]">
+          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+          <path d="m15 5 4 4"/>
+        </svg>
+        <span class="font-manrope font-black text-xs tracking-[0.3em] uppercase">Edit Vineyard Configuration</span>
+      </a>
+
+  </div>
+
+</MasterLayout>

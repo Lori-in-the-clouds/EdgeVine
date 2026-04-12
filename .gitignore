@@ -9,4 +9,6 @@ vineyard-dashboard/.idea/
 
 .vscode/
 
+.venv/
+
 mqtt-server/mqtt-subscriber/__pycache__/
