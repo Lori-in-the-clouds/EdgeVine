@@ -1,9 +1,9 @@
-import React from 'react';
-import { Search, ChevronDown, Menu, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronDown, Menu, X } from 'lucide-react';
 
-export function Header({ hideSearch = false }: { hideSearch?: boolean }) {
-  const [isCollapsed, setIsCollapsed] = React.useState(false);
-  const [userName, setUserName] = React.useState(() => {
+export function Header() {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [userName, setUserName] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('edgevine_profile');
       if (saved) {
@@ -15,7 +15,7 @@ export function Header({ hideSearch = false }: { hideSearch?: boolean }) {
     return "John Doe";
   });
 
-  const [userPhoto, setUserPhoto] = React.useState(() => {
+  const [userPhoto, setUserPhoto] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('edgevine_profile');
       if (saved) {
@@ -27,7 +27,7 @@ export function Header({ hideSearch = false }: { hideSearch?: boolean }) {
     return "/images/marco-rossi.png";
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     const handleProfileUpdate = (e: any) => {
       if (e.detail?.name) setUserName(e.detail.name);
       if (e.detail?.photo) setUserPhoto(e.detail.photo);
@@ -58,22 +58,8 @@ export function Header({ hideSearch = false }: { hideSearch?: boolean }) {
         </div>
       </button>
 
-      {/* Central Rounded Search Bar */}
-      <div className="flex-1 max-w-md mx-4">
-        {!hideSearch && (
-          <div className="relative flex items-center w-full h-10 rounded-full bg-surface-container-low overflow-hidden transition-all focus-within:bg-surface-bright focus-within:ring-2 focus-within:ring-primary-fixed-dim">
-            <div className="grid place-items-center h-full w-12 text-on-surface-variant">
-              <Search className="h-5 w-5" />
-            </div>
-            <input
-              className="peer h-full w-full outline-none text-sm text-on-surface bg-transparent pr-2 font-inter"
-              type="text"
-              id="search"
-              placeholder="Search zones, sensors, or alerts..."
-            />
-          </div>
-        )}
-      </div>
+      {/* Spacer to keep profile on the right */}
+      <div className="flex-1" />
 
       {/* Profile Block */}
       <div className="flex items-center gap-6">

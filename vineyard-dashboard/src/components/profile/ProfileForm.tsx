@@ -32,27 +32,39 @@ export function ProfileForm() {
       try {
         const res = await fetch('/api/vineyard/config');
         const data = await res.json();
-        if (data.success && data.data) {
+        if (data.success && data.data && data.data.sectors && data.data.sectors.length > 0) {
           const v = data.data;
-          if (v.sectors && v.sectors.length > 0) {
-            let sumLat = 0, sumLng = 0, count = 0;
-            v.sectors.forEach((s: any) => {
-              if (s.perimeter && s.perimeter.coordinates) {
-                const coords = s.perimeter.coordinates[0];
-                coords.forEach((c: any) => {
-                  sumLat += c[1]; sumLng += c[0]; count++;
-                });
-              }
-            });
-            if (count > 0) {
-              setVineyardInfo(prev => ({
-                ...prev,
-                centroid: `${(sumLat / count).toFixed(4)}, ${(sumLng / count).toFixed(4)}`
-              }));
+          let sumLat = 0, sumLng = 0, count = 0;
+          v.sectors.forEach((s: any) => {
+            if (s.perimeter && s.perimeter.coordinates) {
+              const coords = s.perimeter.coordinates[0];
+              coords.forEach((c: any) => {
+                sumLat += c[1]; sumLng += c[0]; count++;
+              });
             }
+          });
+          if (count > 0) {
+            setVineyardInfo({
+              province: 'Siena', // In future maybe from reverse geocode
+              address: 'Strada Provinciale del Chianti, 42',
+              centroid: `${(sumLat / count).toFixed(4)}, ${(sumLng / count).toFixed(4)}`
+            });
           }
+        } else {
+          // Reset data if no sectors found
+          setVineyardInfo({
+            province: 'N/A',
+            address: 'No Address Set',
+            centroid: '--, --'
+          });
         }
-      } catch (e) {}
+      } catch (e) {
+        setVineyardInfo({
+          province: 'N/A',
+          address: 'Connection error',
+          centroid: '--, --'
+        });
+      }
     };
     fetchVineyardInfo();
   }, []);

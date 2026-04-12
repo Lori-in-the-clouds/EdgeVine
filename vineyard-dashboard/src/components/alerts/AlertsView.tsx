@@ -82,6 +82,7 @@ export function AlertsView() {
 
   const [formData, setFormData] = useState({
     type: 'infestation' as const,
+    title: '',
     description: ''
   });
 
@@ -222,7 +223,7 @@ export function AlertsView() {
     const newAlert: NetworkAlert = {
       id: Math.random().toString(36).substr(2, 9),
       type: formData.type,
-      title: formData.type === 'infestation' ? 'Manual Pest Report' : 'Health & Nutrition Report',
+      title: formData.title || (formData.type === 'infestation' ? 'Manual Pest Report' : 'Health & Nutrition Report'),
       distance: 'Your Estate',
       time: 'Just now',
       description: formData.description,
@@ -233,7 +234,7 @@ export function AlertsView() {
     };
     setAlerts([newAlert, ...alerts]);
     setShowReportModal(false);
-    setFormData({ type: 'infestation', description: '' });
+    setFormData({ type: 'infestation', title: '', description: '' });
   };
 
   return (
@@ -242,9 +243,9 @@ export function AlertsView() {
 
       {/* OVERLAY FOR NOT CONFIGURED */}
       {!isConfigured && (
-        <div className="absolute inset-0 z-[1100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-6 text-center">
-          <div className="max-w-md bg-stone-950/80 border border-white/10 p-12 rounded-[3.5rem] shadow-2xl animate-in zoom-in-95 duration-500">
-            <div className="w-20 h-20 bg-[#228B22]/10 rounded-3xl flex items-center justify-center text-[#228B22] mx-auto mb-8 border border-[#228B22]/20">
+        <div className="absolute inset-0 z-[1100] bg-black/40 backdrop-blur-sm flex items-center justify-center p-6 text-center animate-in fade-in duration-700">
+          <div className="max-w-md bg-stone-950/80 border border-white/10 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center">
+            <div className="w-20 h-20 bg-[#228B22]/10 rounded-3xl flex items-center justify-center text-[#228B22] mb-8 border border-[#228B22]/20">
               <MapIcon size={40} />
             </div>
             <h2 className="text-3xl font-manrope font-black text-white tracking-tight mb-4">Vineyard Not Configured</h2>
@@ -333,8 +334,24 @@ export function AlertsView() {
               </div>
             </div>
             <div className="flex flex-col gap-4">
+              <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Issue Title</label>
+              <input 
+                type="text"
+                value={formData.title} 
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })} 
+                placeholder="e.g. Broken sprinkler, Leaf damage..." 
+                className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm font-bold focus:outline-none focus:border-[#228B22] transition-colors placeholder:text-stone-600" 
+              />
+            </div>
+
+            <div className="flex flex-col gap-4">
               <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Description</label>
-              <textarea value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="What did you observe? (e.g. Broken pipe in sector 4)" className="w-full h-32 bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm font-medium focus:outline-none focus:border-[#228B22] transition-colors resize-none placeholder:text-stone-600" />
+              <textarea 
+                value={formData.description} 
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })} 
+                placeholder="What did you observe?..." 
+                className="w-full h-32 bg-white/5 border border-white/10 rounded-2xl p-4 text-white text-sm font-medium focus:outline-none focus:border-[#228B22] transition-colors resize-none placeholder:text-stone-600" 
+              />
             </div>
             <div className="bg-stone-800/50 p-4 rounded-2xl border border-white/5 flex items-center gap-4">
               <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500"><AlertTriangle size={20} /></div>

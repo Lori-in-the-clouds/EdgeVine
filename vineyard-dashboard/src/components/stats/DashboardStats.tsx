@@ -93,9 +93,9 @@ export function DashboardStats() {
 
   if (!isConfigured) {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center p-6 text-center">
-        <div className="max-w-md bg-white border border-stone-200 p-12 rounded-[3.5rem] shadow-2xl animate-in zoom-in-95 duration-500">
-          <div className="w-20 h-20 bg-[#228B22]/10 rounded-3xl flex items-center justify-center text-[#228B22] mx-auto mb-8 border border-[#228B22]/20">
+      <div className="min-h-[60vh] flex items-center justify-center p-6 text-center animate-in fade-in duration-700">
+        <div className="max-w-md bg-white border border-stone-200 p-12 rounded-[3.5rem] shadow-2xl flex flex-col items-center">
+          <div className="w-20 h-20 bg-[#228B22]/10 rounded-3xl flex items-center justify-center text-[#228B22] mb-8 border border-[#228B22]/20 shadow-inner">
             <MapIcon size={40} />
           </div>
           <h2 className="text-3xl font-manrope font-black text-stone-800 tracking-tight mb-4">Vineyard Not Configured</h2>
