@@ -9,6 +9,8 @@ import L from 'leaflet';
 import { Search, Plus, Minus, MousePointer2, Hexagon, Square, MapPin, Trash2, Pencil, Layers, Lock, Unlock } from 'lucide-react';
 import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
+import { point } from '@turf/helpers';
 
 interface Sentinel {
   number: number;
@@ -41,6 +43,7 @@ interface ConfigurationMapProps {
   selectedSectorId: string | null;
   onSectorsUpdate: (sectors: Sector[]) => void;
   onSectorSelect: (id: string | null) => void;
+  onInvalidPlacement?: () => void;
   initialZones?: Sentinel[];
 }
 
@@ -53,6 +56,7 @@ export function ConfigurationMap({
   selectedSectorId,
   onSectorsUpdate,
   onSectorSelect,
+  onInvalidPlacement,
   initialZones = []
 }: ConfigurationMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -157,7 +161,8 @@ export function ConfigurationMap({
               color: sector.colorTheme.rows, 
               weight: getRowWeight(zoomLevel, sector.id === selectedSectorId), 
               opacity: sector.id === selectedSectorId ? 1 : 0.4, 
-              interactive: true,
+              // Trasparente ai click SOLO se stiamo inserendo una sentinella
+              interactive: activeMode !== 'marker',
               bubblingMouseEvents: false
             });
             
@@ -355,20 +360,27 @@ export function ConfigurationMap({
   };
 
   const createSentinelIcon = (name: string) => {
+    // Calcolo dinamico della larghezza in base alla lunghezza del nome
+    const charWidth = 8;
+    const padding = 24;
+    const minWidth = 32;
+    const dynamicWidth = Math.max(minWidth, (name.length * charWidth) + padding);
+
     return L.divIcon({
       className: 'sentinel-marker-container',
       html: `
         <div class="relative flex items-center justify-center">
           <div class="absolute w-10 h-10 bg-blue-500/30 rounded-full animate-ping"></div>
-          <div class="relative min-w-8 h-8 px-2 bg-blue-600 backdrop-blur-xl border-2 border-blue-300 rounded-full shadow-2xl flex items-center justify-center overflow-hidden">
+          <div class="relative h-8 px-3 bg-blue-600 backdrop-blur-xl border-2 border-blue-300 rounded-full shadow-2xl flex items-center justify-center overflow-hidden" 
+               style="width: ${dynamicWidth}px; transition: width 0.3s ease-out;">
             <div class="absolute inset-0 bg-gradient-to-tr from-white/20 to-transparent"></div>
             <span class="relative text-white font-black text-[10px] tracking-tighter whitespace-nowrap">${name}</span>
           </div>
           <div class="absolute -bottom-1 w-1 h-1 bg-blue-500 rounded-full shadow-[0_0_8px_#3b82f6]"></div>
         </div>
       `,
-      iconSize: [40, 40],
-      iconAnchor: [20, 20]
+      iconSize: [dynamicWidth, 40],
+      iconAnchor: [dynamicWidth / 2, 20]
     });
   };
 
@@ -393,7 +405,18 @@ export function ConfigurationMap({
         const newId = e.target.value;
         if (onSentinelNameChange) {
            const success = onSentinelNameChange(num, newId);
-           if (!success) {
+           if (success) {
+             // Aggiorniamo l'icona del marker immediatamente sulla mappa
+             const map = mapInstanceRef.current;
+             if (map) {
+               map.eachLayer((layer: any) => {
+                 if (layer instanceof L.Marker && (layer as any).zoneNumber === num) {
+                   (layer as any).zoneName = newId;
+                   layer.setIcon(createSentinelIcon(newId));
+                 }
+               });
+             }
+           } else {
              e.target.value = name; // Revert
            }
         }
@@ -517,8 +540,20 @@ export function ConfigurationMap({
               return createPopupContent(nextNum, defaultId) as any;
             }, { className: 'custom-vineyard-popup' }).openPopup();
             layer.on('pm:remove', () => syncSentinels());
+            
+            // Verifica immediata al posizionamento
+            const pos = layer.getLatLng();
+            const isInside = sectorsRef.current.some(s => {
+              try { return booleanPointInPolygon(point([pos.lng, pos.lat]), s.perimeter); } catch { return false; }
+            });
+
+            if (!isInside) {
+              map.removeLayer(layer);
+              if (onInvalidPlacement) onInvalidPlacement();
+              return;
+            }
+
             syncSentinels();
-            setActiveMode('pan');
           } else if (shape === 'Polygon' || shape === 'Rectangle') {
             const newId = crypto.randomUUID();
             const theme = getTheme(sectorsRef.current) || SECTOR_THEMES[0]!;
@@ -631,9 +666,23 @@ export function ConfigurationMap({
     const map = mapInstanceRef.current;
     if (!map) return;
     const sents: Sentinel[] = [];
+    
     map.eachLayer((layer: any) => {
       if (layer instanceof L.Marker && (layer as any).zoneNumber) {
         const pos = layer.getLatLng();
+        
+        // Verifica se è dentro un settore
+        const isInside = sectorsRef.current.some(s => {
+          try {
+            return booleanPointInPolygon(point([pos.lng, pos.lat]), s.perimeter);
+          } catch { return false; }
+        });
+
+        if (!isInside) {
+          map.removeLayer(layer);
+          return;
+        }
+
         sents.push({
           number: (layer as any).zoneNumber,
           name: (layer as any).zoneName || `Sentinel ${(layer as any).zoneNumber}`,
@@ -693,7 +742,31 @@ export function ConfigurationMap({
     switch (mode) {
       case 'polygon': map.pm.enableDraw('Polygon'); break;
       case 'rectangle': map.pm.enableDraw('Rectangle'); break;
-      case 'marker': map.pm.enableDraw('Marker'); break;
+      case 'marker': 
+        map.pm.enableDraw('Marker', {
+          continueDrawing: true,
+          markerStyle: {
+            icon: L.divIcon({
+              className: 'sentinel-pushpin-icon',
+              html: `
+                <div class="relative flex flex-col items-center pointer-events-none">
+                  <!-- Testa della puntina (Sfera Blu con riflesso) -->
+                  <div class="relative w-7 h-7 bg-blue-600 rounded-full border border-white/20 shadow-xl flex items-center justify-center">
+                    <!-- Riflesso lucido 3D -->
+                    <div class="absolute top-1 left-1.5 w-2.5 h-2.5 bg-white/40 rounded-full blur-[1px]"></div>
+                    <div class="absolute inset-0 rounded-full bg-gradient-to-tr from-black/20 to-transparent"></div>
+                  </div>
+                  <!-- Spillo (Ago in argento) -->
+                  <div class="w-[3px] h-8 bg-gradient-to-b from-stone-400 via-stone-200 to-transparent rounded-t-full -mt-1 shadow-sm" 
+                       style="clip-path: polygon(0% 0%, 100% 0%, 50% 100%);"></div>
+                </div>
+              `,
+              iconSize: [28, 60],
+              iconAnchor: [14, 58]
+            })
+          }
+        }); 
+        break;
       case 'line': map.pm.enableDraw('Line'); break;
       case 'edit': map.pm.enableGlobalEditMode(); break;
       case 'remove': 
@@ -859,7 +932,6 @@ export function ConfigurationMap({
           <ToolButton active={activeMode === 'polygon'} onClick={() => toggleMode('polygon')} icon={<Hexagon className="h-5 w-5" />} label="Draw Area" />
           <ToolButton active={activeMode === 'rectangle'} onClick={() => toggleMode('rectangle')} icon={<Square className="h-5 w-5" />} label="Rectangle" />
           <ToolButton active={activeMode === 'marker'} onClick={() => toggleMode('marker')} icon={<MapPin className="h-5 w-5" />} label="Sentinel" />
-          <ToolButton active={activeMode === 'line'} onClick={() => toggleMode('line')} icon={<Plus className="h-5 w-5" />} label="Manual Row" />
           <ToolButton active={activeMode === 'edit'} onClick={() => toggleMode('edit')} icon={<Pencil className="h-5 w-5" />} label="Edit" />
           <div className="h-px bg-white/5 mx-3" />
           <ToolButton active={activeMode === 'remove'} onClick={() => toggleMode('remove')} icon={<Trash2 className="h-5 w-5 text-red-500" />} label="Remove" position="bottom" />

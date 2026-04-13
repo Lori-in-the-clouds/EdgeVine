@@ -1,14 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Maximize, Save, RefreshCw, Layers, Radio, Trash2, AlertTriangle } from 'lucide-react';
+import { MapPin, Maximize, Save, RefreshCw, Layers, Radio, Trash2, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { point } from '@turf/helpers';
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { ConfigurationMap, type Sector } from '../map/ConfigurationMap';
-import { booleanPointInPolygon, calculateArea, calculateCenter } from '../../lib/spatialUtils';
+import { calculateArea, calculateCenter } from '../../lib/spatialUtils';
 
 export function EditForm() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [mapKey, setMapKey] = useState(1);
-  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
+   const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+   const [showPlacementError, setShowPlacementError] = useState(false);
+   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [landArea, setLandArea] = useState('---');
   const [landCentroid, setLandCentroid] = useState('---');
   const [sectors, setSectors] = useState<Sector[]>([]);
@@ -66,6 +69,7 @@ export function EditForm() {
           const zones = sensorsData.data.map((s: any) => ({
             number: s.zone_number,
             name: s.zone_name || `Sentinel ${s.zone_number}`,
+            external_id: s.external_id || `S-${s.zone_number.toString().padStart(2, '0')}`,
             latitude: s.latitude,
             longitude: s.longitude
           }));
@@ -113,7 +117,7 @@ export function EditForm() {
     }
 
     if (number !== -1) { 
-       setSentinels(prev => prev.map(s => s.number === number ? { ...s, name: trimmed } : s));
+       setSentinels(prev => prev.map(s => s.number === number ? { ...s, name: trimmed, external_id: trimmed } : s));
     }
     return true;
   };
@@ -205,7 +209,34 @@ export function EditForm() {
           area: areaStr,
           centroid: landCentroid,
           sectors: sectors,
-          zones: sentinels
+          zones: sentinels.map(s => {
+            let s_id = null;
+            try {
+              const lng = Number(s.longitude);
+              const lat = Number(s.latitude);
+              
+              if (!isNaN(lng) && !isNaN(lat)) {
+                const sector = sectors.find(sec => {
+                  if (!sec.perimeter) return false;
+                  return booleanPointInPolygon(point([lng, lat]), sec.perimeter);
+                });
+                if (sector) {
+                  s_id = sector.name; // Salviamo il NOME (es. "Sector 1")
+                  console.log(`Sentinel ${s.number} matched to: ${s_id}`);
+                } else {
+                  console.warn(`Sentinel ${s.number} is OUTSIDE all sectors`);
+                }
+              }
+            } catch (spatialErr) {
+              console.error("Spatial check error:", spatialErr);
+            }
+
+            return {
+              ...s,
+              external_id: s.external_id || (typeof s.name === 'string' && s.name.startsWith('S-') ? s.name : `S-${s.number.toString().padStart(2, '0')}`),
+              sector_id: s_id
+            };
+          })
         })
       });
       
@@ -213,10 +244,12 @@ export function EditForm() {
       if (result.success) {
         setShowSaveSuccess(true);
         setTimeout(() => setShowSaveSuccess(false), 3000);
+      } else {
+        alert("Server Error: " + (result.error || "Unknown error during save"));
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Save error:", err);
-      alert("Failed to save configuration.");
+      alert("Network Error: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -235,6 +268,22 @@ export function EditForm() {
   return (
     <div className="space-y-12 max-w-7xl mx-auto p-4 animate-in fade-in slide-in-from-bottom-4 duration-1000 relative">
       
+      {showPlacementError && (
+        <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[10000] bg-stone-900 border-2 border-yellow-500/50 text-white px-8 py-5 rounded-[2rem] shadow-[0_20px_50px_rgba(234,179,8,0.2)] flex items-center gap-5 animate-in fade-in slide-in-from-top-10 duration-700">
+          <div className="relative">
+             <div className="absolute inset-0 bg-yellow-500 blur-md opacity-20 animate-pulse"></div>
+             <AlertTriangle className="h-8 w-8 text-yellow-500 relative" />
+          </div>
+          <div className="flex flex-col">
+            <span className="font-black uppercase tracking-widest text-[10px] text-yellow-500">Placement Blocked</span>
+            <span className="font-bold text-stone-300 text-[11px]">Sentinels must be placed inside a sector perimeter.</span>
+          </div>
+          <button onClick={() => setShowPlacementError(false)} className="ml-4 p-2 hover:bg-white/5 rounded-full transition-all text-stone-500 hover:text-white">
+            <XCircle className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+
       {showSaveSuccess && (
         <div className="fixed top-10 left-1/2 -translate-x-1/2 z-[9999] bg-[#1B4332] border-2 border-[#228B22] text-white px-8 py-4 rounded-full shadow-[0_10px_40px_rgba(34,139,34,0.3)] flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-500">
           <Save className="h-5 w-5 text-[#228B22]" />
@@ -304,7 +353,13 @@ export function EditForm() {
           onSentinelsUpdate={(newSentinels) => {
              setSentinels(prev => newSentinels.map(ns => {
                const existing = prev.find(ps => ps.number === ns.number);
-               return { ...ns, name: existing?.name || ns.name || `Sentinel ${ns.number}` };
+               // L'ID esterno è il nome inserito, oppure il vecchio ID, o un default
+               const identifier = ns.name || existing?.external_id || `S-${ns.number.toString().padStart(2, '0')}`;
+               return { 
+                 ...ns, 
+                 name: identifier,
+                 external_id: identifier
+               };
              }));
           }}
           onSentinelNameChange={handleSentinelNameChange}
@@ -312,6 +367,10 @@ export function EditForm() {
           selectedSectorId={selectedSectorId}
           onSectorsUpdate={setSectors}
           onSectorSelect={setSelectedSectorId}
+          onInvalidPlacement={() => {
+            setShowPlacementError(true);
+            setTimeout(() => setShowPlacementError(false), 4500);
+          }}
           initialZones={sentinels} 
         />
       </section>
@@ -629,7 +688,8 @@ function SentinelRow({ sentinel, sectorName, sectorColor, onRename, onDelete }: 
       <td className="px-8 py-4">
         <input 
           type="text" 
-          defaultValue={sentinel.name} 
+          value={sentinel.name} 
+          onChange={(e) => onRename(sentinel.number, e.target.value, sentinel.name, e.target)}
           onBlur={(e) => {
              const success = onRename(sentinel.number, e.target.value, sentinel.name, e.target);
              if (!success) e.target.value = sentinel.name;

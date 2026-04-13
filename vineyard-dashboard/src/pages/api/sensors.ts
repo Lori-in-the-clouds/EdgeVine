@@ -8,6 +8,8 @@ export const GET: APIRoute = async () => {
         vz.id as zone_id, 
         vz.number as zone_number,
         vz.name as zone_name,
+        vz.external_id,
+        vz.sector_id,
         COALESCE(vz.latitude, v.latitude) as latitude,
         COALESCE(vz.longitude, v.longitude) as longitude,
         sd.temperature, 

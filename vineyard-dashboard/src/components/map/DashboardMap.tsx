@@ -279,21 +279,27 @@ export function DashboardMap({ onStatsUpdate }: DashboardMapProps) {
       const captureTime = sensor.last_capture_time || new Date().toLocaleString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
       const captureImage = sensor.last_capture_image || `https://images.unsplash.com/photo-1593444453965-0fcb546bcdd7?auto=format&fit=crop&w=400&q=80&sig=${sensor.id || sensor.zone_number}`;
 
+      const sensorName = (sensor.zone_name || sensor.zone_number).toString();
+      const charWidth = 8;
+      const padding = 20;
+      const minWidth = 28;
+      const dynamicWidth = Math.max(minWidth, (sensorName.length * charWidth) + padding);
+
       const premiumIcon = L.divIcon({
         className: 'sentinel-marker-dashboard',
         html: `
           <div class="relative flex items-center justify-center">
             <div class="absolute w-8 h-8 rounded-full animate-ping" style="background-color: ${statusColor}60"></div>
-            <div class="relative w-7 h-7 backdrop-blur-xl border border-white/40 rounded-full shadow-2xl flex items-center justify-center overflow-hidden" 
-                 style="background-color: ${statusColor};">
+            <div class="relative h-7 px-2 backdrop-blur-xl border border-white/40 rounded-full shadow-2xl flex items-center justify-center overflow-hidden" 
+                 style="background-color: ${statusColor}; width: ${dynamicWidth}px; transition: width 0.3s ease-out;">
               <div class="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent"></div>
-              <span class="relative text-white font-black text-[10px] tracking-tighter shadow-sm">${sensor.zone_name || sensor.zone_number}</span>
+              <span class="relative text-white font-black text-[10px] tracking-tighter shadow-sm whitespace-nowrap">${sensorName}</span>
             </div>
             <div class="absolute -bottom-1 w-1.5 h-1.5 rounded-full shadow-[0_0_8px_${statusColor}]" style="background-color: ${statusColor}"></div>
           </div>
         `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
+        iconSize: [dynamicWidth, 32],
+        iconAnchor: [dynamicWidth / 2, 16]
       });
 
       const popupContent = `

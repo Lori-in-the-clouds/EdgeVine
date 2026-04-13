@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
   PieChart, Pie, Cell
@@ -16,71 +16,67 @@ export function DashboardStats() {
   const [isConfigured, setIsConfigured] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   
+  const [timeRange, setTimeRange] = useState('24h');
+
   useEffect(() => {
-    // 1. Check Configuration
-    const checkConfig = async () => {
+    // 1. Check Configuration and then Fetch Stats
+    const fetchData = async () => {
       try {
-        const res = await fetch('/api/vineyard/config');
-        const data = await res.json();
-        if (data.success && data.data && data.data.sectors && data.data.sectors.length > 0) {
+        const configRes = await fetch('/api/vineyard/config');
+        const configData = await configRes.json();
+        
+        if (configData.success && configData.data && configData.data.sectors && configData.data.sectors.length > 0) {
           setIsConfigured(true);
-          // Only fetch other data if configured
-          startDashboardTasks();
+          
+          // Fetch Real Stats from our new Engine with dynamic range
+          const statsRes = await fetch(`/api/vineyard/stats?range=${timeRange}`);
+          const statsData = await statsRes.json();
+          
+          if (statsData.success) {
+            const d = statsData.data;
+            setHistory(d.chartData);
+            setLatestStats({
+              safe: d.health.stable_pct,
+              stress: Math.round(d.health.critical * (100 / (d.global.nodes || 1)) / 2),
+              disease: Math.round(d.health.critical * (100 / (d.global.nodes || 1)) / 2),
+              totalWine: d.production.estimated_liters,
+              confidence: d.production.confidence,
+              leavesAnalyzed: d.production.leaves_analyzed,
+              temp: d.global.temp,
+              hum: d.global.hum,
+              moist: d.global.moist
+            });
+          }
         } else {
           setIsConfigured(false);
-          setIsLoading(false);
         }
       } catch (e) {
         setIsConfigured(false);
+      } finally {
         setIsLoading(false);
       }
     };
 
-    const startDashboardTasks = () => {
-      // Fetch History
-      fetch('/api/sensors/history')
-        .then(r => r.json())
-        .then(d => {
-          if (d.success) setHistory(d.data);
-        });
-        
-      // Fetch Current Data
-      fetch('/api/sensors')
-        .then(r => r.json())
-        .then(d => {
-          if (d.success) {
-            setLatestStats({
-              safe: 78,
-              stress: 15,
-              disease: 7,
-              totalWine: 1450,
-              confidence: 82,
-              leavesAnalyzed: 12450,
-              observations: 240
-            });
-          }
-        });
+    fetchData();
+  }, [timeRange]);
 
-      // Mock images
-      const sensors = ["Sentinel-A1", "Sentinel-A2", "Sentinel-B1", "Sentinel-B2", "Sentinel-C1"];
-      const mockImages = Array.from({ length: 20 }).map((_, i) => ({
-        id: i,
-        sensorName: sensors[Math.floor(Math.random() * sensors.length)],
-        date: new Date(Date.now() - i * 3600000 * 4).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-        time: new Date(Date.now() - i * 3600000 * 4).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
-        url: `https://loremflickr.com/400/300/vineyard,grapes?lock=${i + 50}`
-      }));
-      setRecentImages(mockImages);
-      setIsLoading(false);
-    };
-
-    checkConfig();
+  useEffect(() => {
+    // Mock images (kept for visual flair)
+    const sensors = ["Sentinel-A1", "Sentinel-A2", "Sentinel-B1", "Sentinel-B2", "Sentinel-C1"];
+    const mockImages = Array.from({ length: 20 }).map((_, i) => ({
+      id: i,
+      sensorName: sensors[Math.floor(Math.random() * sensors.length)],
+      date: new Date(Date.now() - i * 3600000 * 4).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+      time: new Date(Date.now() - i * 3600000 * 4).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+      url: `https://loremflickr.com/400/300/vineyard,grapes?lock=${i + 50}`
+    }));
+    setRecentImages(mockImages);
   }, []);
 
   const canopyData = latestStats ? [
     { name: 'Safe', value: latestStats.safe, color: '#006c0c' },
-    { name: 'Stress', value: latestStats.stress, color: '#fbbf24' },
-    { name: 'Disease', value: latestStats.disease, color: '#ba1a1a' },
+    { name: 'Stress', value: Math.max(0, 100 - latestStats.safe - latestStats.disease), color: '#fbbf24' },
+    { name: 'Disease', value: latestStats.disease || 0, color: '#ba1a1a' },
   ] : [];
 
   if (isLoading) {
@@ -171,31 +167,52 @@ export function DashboardStats() {
           <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Thermometer className="h-8 w-8" /></div>
           <div className="flex flex-col">
             <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Temperature</p>
-            <span className="text-4xl font-manrope font-black text-stone-800">24°C</span>
+            <span className="text-4xl font-manrope font-black text-stone-800">{latestStats?.temp || '--'}°C</span>
           </div>
         </div>
         <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
           <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Droplets className="h-8 w-8" /></div>
           <div className="flex flex-col">
             <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Air Humidity</p>
-            <span className="text-4xl font-manrope font-black text-stone-800">58%</span>
+            <span className="text-4xl font-manrope font-black text-stone-800">{latestStats?.hum || '--'}%</span>
           </div>
         </div>
         <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
           <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Sprout className="h-8 w-8" /></div>
           <div className="flex flex-col">
             <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Soil Moisture</p>
-            <span className="text-4xl font-manrope font-black text-stone-800">34.2%</span>
+            <span className="text-4xl font-manrope font-black text-stone-800">{latestStats?.moist || '--'}%</span>
           </div>
         </div>
       </div>
 
       {/* SECTION 3: TELEMETRY HISTORY */}
       <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100">
-        <div className="flex justify-between items-center mb-10">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
           <div>
             <h2 className="text-2xl font-manrope font-black text-on-surface">Telemetry History</h2>
             <p className="text-stone-400 font-inter text-sm">Long-term environmental trends analysis</p>
+          </div>
+          <div className="flex items-center gap-2 bg-stone-100 rounded-2xl p-1">
+            {[
+              { id: '24h', label: '24h' },
+              { id: '7d', label: '7d' },
+              { id: '30d', label: '30d' },
+              { id: '90d', label: '3m' },
+              { id: '1y', label: '1y' }
+            ].map((range) => (
+              <button
+                key={range.id}
+                onClick={() => setTimeRange(range.id)}
+                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${
+                  timeRange === range.id
+                    ? 'bg-white text-[#228B22] shadow-sm scale-105'
+                    : 'text-stone-400 hover:text-stone-600'
+                }`}
+              >
+                {range.label}
+              </button>
+            ))}
           </div>
         </div>
         <div className="h-[350px] w-full">

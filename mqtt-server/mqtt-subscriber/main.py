@@ -51,9 +51,9 @@ DB_CONNINFO = (
     f"password={POSTGRES_PASSWORD}"
 )
 
-ZONE_TOPIC_RE = re.compile(r"^zone/(?P<zone>\d+)/sensor/(?P<sensor>[A-Za-z0-9_-]+)$")
+ZONE_TOPIC_RE = re.compile(r"^zone/(?P<zone>[A-Za-z0-9_-]+)/sensor/(?P<sensor>[A-Za-z0-9_-]+)$")
 DEVICE_TOPIC_RE = re.compile(r"^sensori/(?P<device>[^/]+)/(?P<sensor>[A-Za-z0-9_-]+)$")
-DEVICE_ZONE_SUFFIX_RE = re.compile(r"(?P<zone>\d+)$")
+DEVICE_ZONE_SUFFIX_RE = re.compile(r"(?P<zone>[A-Za-z0-9_-]+)$")
 SENSOR_ALIASES = {
     "temperature": "temperature",
     "humidity": "humidity",
@@ -173,42 +173,52 @@ def ensure_vineyard_exists():
         )
 
 
-def get_or_create_vine_zone_id(zone_number):
-    cached_id = zone_id_cache.get(zone_number)
+def get_or_create_vine_zone_id(zone_identifier):
+    # zone_identifier può essere un numero o una stringa come "S-01"
+    cached_id = zone_id_cache.get(zone_identifier)
     if cached_id is not None:
         return cached_id
 
     with db_conn.cursor() as cur:
+        # Cerchiamo prima per external_id, poi per number se è numerico
         cur.execute(
             """
             SELECT id
             FROM vine_zone
-            WHERE vineyard_id = %s AND number = %s
+            WHERE vineyard_id = %s AND (external_id = %s OR (number::text = %s AND external_id IS NULL))
             """,
-            (VINEYARD_ID, zone_number),
+            (VINEYARD_ID, str(zone_identifier), str(zone_identifier)),
         )
         existing_row = cur.fetchone()
         if existing_row is not None:
             zone_id = existing_row[0]
-            zone_id_cache[zone_number] = zone_id
+            zone_id_cache[zone_identifier] = zone_id
             return zone_id
+
+        # Se non esiste, lo creiamo usando l'identificativo come external_id
+        # Proviamo a ricavare un numero se l'ID è del tipo "S-01"
+        try:
+            numeric_match = re.search(r"(\d+)", str(zone_identifier))
+            zone_number = int(numeric_match.group(1)) if numeric_match else 0
+        except:
+            zone_number = 0
 
         cur.execute(
             """
-            INSERT INTO vine_zone (number, vineyard_id)
-            VALUES (%s, %s)
+            INSERT INTO vine_zone (number, external_id, vineyard_id)
+            VALUES (%s, %s, %s)
             RETURNING id
             """,
-            (zone_number, VINEYARD_ID),
+            (zone_number, str(zone_identifier), VINEYARD_ID),
         )
         zone_id = cur.fetchone()[0]
 
-    zone_id_cache[zone_number] = zone_id
+    zone_id_cache[zone_identifier] = zone_id
     return zone_id
 
 
-def insert_sensor_data(zone_number, timestamp_value, measurements):
-    zone_id = get_or_create_vine_zone_id(zone_number)
+def insert_sensor_data(zone_identifier, timestamp_value, measurements):
+    zone_id = get_or_create_vine_zone_id(zone_identifier)
 
     query = """
         INSERT INTO sensor_data (
@@ -266,10 +276,10 @@ def parse_message(topic, payload):
     device_match = DEVICE_TOPIC_RE.fullmatch(topic)
 
     if zone_match is not None:
-        zone_number = int(zone_match.group("zone"))
+        zone_identifier = zone_match.group("zone")
         sensor_name = zone_match.group("sensor").lower()
     elif device_match is not None:
-        zone_number = parse_zone_from_device(device_match.group("device"))
+        zone_identifier = parse_zone_from_device(device_match.group("device"))
         sensor_name = device_match.group("sensor").lower()
     else:
         raise ValueError(f"Topic non supportato: {topic}")
@@ -299,13 +309,13 @@ def parse_message(topic, payload):
         timestamp_value = None
 
     value = float(raw_value)
-    return zone_number, canonical_sensor, value, timestamp_value
+    return zone_identifier, canonical_sensor, value, timestamp_value
 
 
-def register_measurement(zone_number, sensor_name, value, timestamp_value):
+def register_measurement(zone_identifier, sensor_name, value, timestamp_value):
     with zone_state_lock:
         state = zone_state.setdefault(
-            zone_number,
+            zone_identifier,
             {
                 "latest_values": {},
                 "updated_sensors": set(),
@@ -360,10 +370,10 @@ def on_message(client, userdata, msg):
             return
 
         measurement_timestamp, measurements = batch
-        insert_sensor_data(zone_number, measurement_timestamp, measurements)
+        insert_sensor_data(zone_identifier, measurement_timestamp, measurements)
         print(
             "Salvata misura -> "
-            f"vineyard={VINEYARD_ID}, zone={zone_number}, "
+            f"vineyard={VINEYARD_ID}, zone={zone_identifier}, "
             f"timestamp={measurement_timestamp.isoformat()}, dati={measurements}"
         )
     except Exception as exc:
