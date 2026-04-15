@@ -64,6 +64,11 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    volumes:
+      - ./mqtt-subscriber/main.py:/app/main.py
+      - ../CV:/CV
+      - ../vineyard-dashboard/public/captures:/app/public/captures
+      - ../vineyard-dashboard/public/cv_results:/app/public/cv_results
     restart: unless-stopped
 
   vineyard-dashboard:
@@ -92,6 +97,7 @@ services:
     volumes:
       - ../vineyard-dashboard:/app
       - /app/node_modules # Evita che il node_modules del Mac sovrascriva quello del container
+      - ../CV:/CV
     ports:
       # Mappiamo la porta 4321 del Mac alla 4321 del container
       - "${DASHBOARD_PORT:-4321}:4321"

@@ -276,8 +276,8 @@ export function DashboardMap({ onStatsUpdate }: DashboardMapProps) {
         statusLabel = 'Warning';
       }
 
-      const captureTime = sensor.last_capture_time || new Date().toLocaleString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-      const captureImage = sensor.last_capture_image || `https://images.unsplash.com/photo-1593444453965-0fcb546bcdd7?auto=format&fit=crop&w=400&q=80&sig=${sensor.id || sensor.zone_number}`;
+      const captureTime = sensor.timestamp ? new Date(sensor.timestamp).toLocaleString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No Capture';
+      const captureImage = sensor.image_url || `https://images.unsplash.com/photo-1593444453965-0fcb546bcdd7?auto=format&fit=crop&w=400&q=80&sig=${sensor.id || sensor.zone_number}`;
 
       const sensorName = (sensor.zone_name || sensor.zone_number).toString();
       const charWidth = 8;
@@ -303,42 +303,40 @@ export function DashboardMap({ onStatsUpdate }: DashboardMapProps) {
       });
 
       const popupContent = `
-        <div style="font-family:'Manrope',sans-serif; padding:16px; min-width:240px; background:#fff; border-radius:12px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f0f0f0; padding-bottom:10px; margin-bottom:10px;">
-            <span style="font-size:10px; font-weight:800; color:#228B22; text-transform:uppercase; letter-spacing:0.1em;">
-              Sentinel ${sensor.zone_name || sensor.zone_number}
-            </span>
-            <span style="font-size:8px; font-weight:900; padding:2px 8px; border-radius:10px; background:${statusColor}20; color:${statusColor}; text-transform:uppercase;">
-              ${statusLabel}
-            </span>
+        <div style="font-family:'Manrope',sans-serif; padding:0; min-width:280px; background:#111; border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,0.1);">
+          <div style="position:relative; width:100%; height:180px;">
+             <img src="${captureImage}" alt="Vine snapshot" style="width:100%; height:100%; object-fit:cover; display:block;" />
+             <div style="position:absolute; top:12px; left:12px; background:rgba(0,0,0,0.6); backdrop-filter:blur(10px); padding:4px 10px; border-radius:8px; border:1px solid rgba(255,255,255,0.1);">
+                <span style="font-size:9px; font-weight:900; color:#fff; text-transform:uppercase; letter-spacing:0.1em;">Sentinel ${sensor.zone_name || sensor.zone_number}</span>
+             </div>
+             <div style="position:absolute; bottom:0; left:0; right:0; background:linear-gradient(to top, rgba(0,0,0,0.9), transparent); padding:30px 16px 12px 16px;">
+                <p style="font-size:7px; text-transform:uppercase; color:#228B22; font-weight:900; margin:0; letter-spacing:0.2em;">Last Recorded Feed</p>
+                <p style="font-size:12px; color:#fff; font-weight:700; margin:0; margin-top:2px;">${captureTime}</p>
+             </div>
           </div>
           
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:12px;">
-             <div style="display:flex; flex-direction:column;">
-               <span style="color:#999; font-size:9px; text-transform:uppercase; font-weight:700;">Moisture</span>
-               <b style="color:#111; font-size:14px;">${sensor.moisture ?? '--'}%</b>
-             </div>
-             <div style="display:flex; flex-direction:column;">
-               <span style="color:#999; font-size:9px; text-transform:uppercase; font-weight:700;">Temperature</span>
-               <b style="color:#111; font-size:14px;">${sensor.temperature ?? '--'}°C</b>
-             </div>
-          </div>
+          <div style="padding:16px; background:#1a1a1a;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:12px;">
+               <div style="display:flex; flex-direction:column; gap:2px;">
+                 <span style="color:#666; font-size:9px; text-transform:uppercase; font-weight:800; tracking-widest;">Soil Moisture</span>
+                 <b style="color:#fff; font-size:16px;">${sensor.moisture ?? '--'}%</b>
+               </div>
+               <div style="display:flex; flex-direction:column; gap:2px;">
+                 <span style="color:#666; font-size:9px; text-transform:uppercase; font-weight:800; tracking-widest;">Ambient</span>
+                 <b style="color:#fff; font-size:16px;">${sensor.temperature ?? '--'}°C</b>
+               </div>
+            </div>
 
-          <div style="margin-top:14px; border-radius:10px; overflow:hidden; border:1px solid #e2e8f0; position:relative;">
-             <img src="${captureImage}" alt="Vine snapshot" style="width:100%; height:110px; object-fit:cover; display:block;" />
-             <div style="position:absolute; bottom:0; left:0; right:0; background:linear-gradient(to top, rgba(0,0,0,0.8), transparent); padding:20px 10px 8px 10px;">
-               <p style="font-size:7px; text-transform:uppercase; color:#cbd5e1; font-weight:800; margin:0; letter-spacing:0.05em;">Latest Capture</p>
-               <p style="font-size:11px; color:#fff; font-weight:700; margin:0; margin-top:2px;">${captureTime}</p>
-             </div>
-          </div>
-
-          <div style="margin-top:10px; display:flex; gap:4px;">
-            ${(sensor.soil_status || []).map((tag: any) => `
-              <span style="font-size:7px; font-weight:800; color:#228B22; background:#228B2210; padding:2px 6px; border-radius:4px; text-transform:uppercase;">${tag}</span>
-            `).join('')}
+            <div style="display:flex; align-items:center; justify-content:space-between; padding-top:12px; border-top:1px solid rgba(255,255,255,0.05);">
+               <div style="display:flex; gap:4px;">
+                 <span style="font-size:8px; font-weight:900; color:#fff; background:${statusColor}; padding:3px 8px; border-radius:6px; text-transform:uppercase;">${statusLabel}</span>
+               </div>
+               <span style="font-size:8px; font-weight:700; color:#555; text-transform:uppercase;">Station ID: ${sensor.external_id || 'EF-401'}</span>
+            </div>
           </div>
         </div>
       `;
+
 
       L.marker([sensor.latitude, sensor.longitude], { icon: premiumIcon })
         .bindPopup(popupContent, { className: 'premium-sentinel-popup', minWidth: 240 })

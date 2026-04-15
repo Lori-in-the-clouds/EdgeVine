@@ -1,0 +1,46 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { VisionConsole } from '../components/vision/VisionConsole';
+---
+
+<Layout title="AI Vision | EdgeVine">
+	<main className="min-h-screen bg-[#FDFCFB] p-4 md:p-10 font-manrope">
+		<div className="max-w-7xl mx-auto space-y-10 py-10">
+			
+			{/* Header Section */}
+			<header className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+				<div className="space-y-2">
+					<div className="flex items-center gap-3">
+						<div className="w-10 h-10 bg-stone-900 rounded-xl flex items-center justify-center text-[#228B22] shadow-lg shadow-stone-200">
+							<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+						</div>
+						<h1 className="text-4xl font-black text-stone-900 tracking-tight">AI Vision <span className="text-[#228B22]">Analytics</span></h1>
+					</div>
+					<p className="text-stone-400 font-bold uppercase text-[10px] tracking-[0.3em] ml-1">Powered by EdgeVine YOLO Integration</p>
+				</div>
+				
+				<div className="flex items-center gap-4">
+					<div className="bg-white px-6 py-4 rounded-2xl border border-stone-100 shadow-sm flex items-center gap-4">
+						<div className="flex flex-col">
+							<span className="text-[9px] font-black text-stone-300 uppercase tracking-widest">Inference Model</span>
+							<span className="text-sm font-black text-stone-800">YOLOv8 Vineyard Special</span>
+						</div>
+						<div className="w-3 h-3 bg-[#228B22] rounded-full animate-pulse shadow-[0_0_10px_#228B22]"></div>
+					</div>
+				</div>
+			</header>
+
+			{/* Main Console Implementation */}
+            <VisionConsole client:load />
+
+		</div>
+	</main>
+</Layout>
+
+<style is:global>
+	@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&display=swap');
+	
+	body {
+		font-family: 'Manrope', sans-serif;
+	}
+</style>

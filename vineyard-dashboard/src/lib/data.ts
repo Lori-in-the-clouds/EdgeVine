@@ -123,7 +123,7 @@ async function getVineyardZoneRows(vineyardId?: number): Promise<VineyardZoneRow
         sd.humidity,
         sd.moisture
       FROM sensor_data sd
-      WHERE sd.vine_zone_id = vz.id
+      WHERE sd.sensor_id = vz.id
       ORDER BY sd.timestamp DESC
       LIMIT 1
     ) latest ON true
@@ -192,6 +192,9 @@ export async function getVineyardDetail(id: number): Promise<VineyardDetail | nu
   }
 
   const first = rows[0];
+  if (!first) {
+    return null;
+  }
   const zones = rows
     .map((row) => deriveZoneSnapshot(row))
     .filter((zone): zone is ZoneSnapshot => zone !== null);

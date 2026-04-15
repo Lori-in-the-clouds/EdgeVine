@@ -59,6 +59,8 @@ SENSOR_ALIASES = {
     "humidity": "humidity",
     "moisture": "moisture",
     "mosture": "moisture",
+    "image": "image_url",
+    "camera": "image_url",
 }
 REQUIRED_SENSORS = ("temperature", "humidity", "moisture")
 DEVICE_ZONE_MAP = {
@@ -173,7 +175,7 @@ def ensure_vineyard_exists():
         )
 
 
-def get_or_create_vine_zone_id(zone_identifier):
+def get_or_create_sensor_id(zone_identifier):
     # zone_identifier può essere un numero o una stringa come "S-01"
     cached_id = zone_id_cache.get(zone_identifier)
     if cached_id is not None:
@@ -185,7 +187,7 @@ def get_or_create_vine_zone_id(zone_identifier):
             """
             SELECT id
             FROM vine_zone
-            WHERE vineyard_id = %s AND (external_id = %s OR (number::text = %s AND external_id IS NULL))
+            WHERE vineyard_id = %s AND (external_id = %s OR number::text = %s)
             """,
             (VINEYARD_ID, str(zone_identifier), str(zone_identifier)),
         )
@@ -217,43 +219,135 @@ def get_or_create_vine_zone_id(zone_identifier):
     return zone_id
 
 
-def insert_sensor_data(zone_identifier, timestamp_value, measurements):
-    zone_id = get_or_create_vine_zone_id(zone_identifier)
+import subprocess
+
+def run_ai_analysis(image_path):
+    """Runs the YOLO inference script and returns results"""
+    if not image_path:
+        return None
+    
+    # Ignore remote URLs - only local captures allowed
+    if image_path.startswith('http'):
+        print(f"--- ⚠️ Skipping non-local image URL: {image_path} ---")
+        return None
+        
+    # Path inside the Docker container
+    if image_path.startswith('/'):
+        abs_image_path = f"/app/public{image_path}" if image_path.startswith('/captures') else image_path
+    else:
+        abs_image_path = f"/app/public/captures/{image_path}" if not image_path.startswith('captures') else f"/app/public/{image_path}"
+
+    python_script = "/CV/inference.py"
+    save_name = f"auto_{os.path.basename(image_path)}"
+    
+    try:
+        # We run the script and capture JSON output with a 120s timeout
+        result = subprocess.run(
+            ["python3", python_script, abs_image_path, save_name],
+            capture_output=True, text=True, check=True, timeout=120
+        )
+        
+        # Move the newly created image to the public outputs folder
+        import shutil
+        generated_path = f"/CV/images/{save_name}"
+        final_path = f"/app/public/cv_results/{save_name}"
+        
+        if os.path.exists(generated_path):
+            os.makedirs(os.path.dirname(final_path), exist_ok=True)
+            shutil.copy2(generated_path, final_path)
+            os.remove(generated_path)
+            
+        return json.loads(result.stdout.strip())
+    except Exception as e:
+        print(f"AI Analysis Error: {e}")
+        return None
+
+def async_ai_analysis(record_id, image_url):
+    """Worker to run AI in background and update the record"""
+    print(f"--- 🧠 Async AI Analysis: Starting for ID {record_id} ({image_url}) ---")
+    results = run_ai_analysis(image_url)
+    if results:
+        try:
+            with psycopg.connect(DB_CONNINFO) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        UPDATE sensor_data 
+                        SET 
+                            grape_count = %s,
+                            health_status = %s,
+                            estimated_liters = %s,
+                            processed_image_url = %s,
+                            leaf_healthy_count = %s,
+                            leaf_stress_count = %s,
+                            leaf_disease_count = %s
+                        WHERE id = %s
+                    """, (
+                        results.get("grape_count"),
+                        results.get("health_prediction"),
+                        results.get("liters_estimated"),
+                        results.get("processed_image_url"),
+                        results.get("leaf_healthy_count", 0),
+                        results.get("leaf_stress_count", 0),
+                        results.get("leaf_disease_count", 0),
+                        record_id
+                    ))
+                    conn.commit()
+            print(f"--- ✅ Async AI Analysis: ID {record_id} completed successfully ---")
+        except Exception as e:
+            print(f"--- ❌ Async AI Analysis Error (DB Update): {e} ---")
+
+def insert_sensor_data(zone_identifier, timestamp_value, measurements, image_url=None):
+    zone_id = get_or_create_sensor_id(zone_identifier)
 
     query = """
         INSERT INTO sensor_data (
-            vine_zone_id,
+            sensor_id,
             timestamp,
             temperature,
             humidity,
-            moisture
+            moisture,
+            image_url
         )
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        RETURNING id
     """
+    
     values = (
         zone_id,
         timestamp_value,
         measurements["temperature"],
         measurements["humidity"],
         measurements["moisture"],
+        image_url
     )
 
     try:
+        record_id = None
         with db_conn.cursor() as cur:
             cur.execute(query, values)
+            record_id = cur.fetchone()[0]
+        
+        # If there's an image, trigger AI in a separate thread so we don't block MQTT
+        if image_url and record_id:
+            threading.Thread(
+                target=async_ai_analysis, 
+                args=(record_id, image_url), 
+                daemon=True
+            ).start()
+            
     except Exception as exc:
         print(f"Errore insert DB: {exc}")
         reconnect_db()
-        zone_id = get_or_create_vine_zone_id(zone_number)
-        retry_values = (
-            zone_id,
-            timestamp_value,
-            measurements["temperature"],
-            measurements["humidity"],
-            measurements["moisture"],
-        )
+        # In case of retry
         with db_conn.cursor() as cur:
-            cur.execute(query, retry_values)
+            cur.execute(query, values)
+            record_id = cur.fetchone()[0]
+            if image_url and record_id:
+                threading.Thread(
+                    target=async_ai_analysis, 
+                    args=(record_id, image_url), 
+                    daemon=True
+                ).start()
 
 
 def parse_zone_from_device(device_name):
@@ -308,7 +402,14 @@ def parse_message(topic, payload):
         raw_value = decoded
         timestamp_value = None
 
-    value = float(raw_value)
+    if canonical_sensor == "image_url":
+        value = raw_value  # Keep as string
+    else:
+        try:
+            value = float(raw_value)
+        except (ValueError, TypeError):
+            raise ValueError(f"Impossibile convertire valore in float: {raw_value!r}")
+            
     return zone_identifier, canonical_sensor, value, timestamp_value
 
 
@@ -339,9 +440,10 @@ def register_measurement(zone_identifier, sensor_name, value, timestamp_value):
         measurement_timestamp = max(
             state["sensor_timestamps"][sensor] for sensor in REQUIRED_SENSORS
         )
+        image_url = state["latest_values"].get("image_url")
         state["updated_sensors"].clear()
 
-    return measurement_timestamp, measurements
+    return measurement_timestamp, measurements, image_url
 
 
 def on_connect(client, userdata, flags, reason_code, properties=None):
@@ -369,11 +471,11 @@ def on_message(client, userdata, msg):
         if batch is None:
             return
 
-        measurement_timestamp, measurements = batch
-        insert_sensor_data(zone_identifier, measurement_timestamp, measurements)
+        measurement_timestamp, measurements, image_url = batch
+        insert_sensor_data(zone_number, measurement_timestamp, measurements, image_url)
         print(
             "Salvata misura -> "
-            f"vineyard={VINEYARD_ID}, zone={zone_identifier}, "
+            f"vineyard={VINEYARD_ID}, zone={zone_number}, "
             f"timestamp={measurement_timestamp.isoformat()}, dati={measurements}"
         )
     except Exception as exc:
@@ -394,8 +496,83 @@ def build_mqtt_client():
     return client
 
 
+import threading
+
+def process_backlog():
+    """Scans the database for images without analysis and processes them in background"""
+    print("--- 🔍 Background AI Worker: Scanning for un-analyzed images ---")
+    while True:
+        try:
+            with psycopg.connect(DB_CONNINFO) as conn:
+                with conn.cursor() as cur:
+                    # Find records with image but no AI data
+                    cur.execute("""
+                        SELECT id, image_url 
+                        FROM sensor_data 
+                        WHERE image_url IS NOT NULL 
+                          AND grape_count IS NULL 
+                          AND image_url NOT LIKE 'http%'
+                        LIMIT 5
+                    """)
+                    backlog = cur.fetchall()
+            
+            if not backlog:
+                # No more backlog, wait before checking again
+                time.sleep(60)
+                continue
+
+            for record_id, image_url in backlog:
+                print(f"--- 🧠 Backlog Analysis: Processing ID {record_id} ({image_url}) ---")
+                results = run_ai_analysis(image_url)
+                
+                if results:
+                    with psycopg.connect(DB_CONNINFO) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("""
+                                UPDATE sensor_data 
+                                SET 
+                                    grape_count = %s,
+                                    health_status = %s,
+                                    estimated_liters = %s,
+                                    processed_image_url = %s,
+                                    leaf_healthy_count = %s,
+                                    leaf_stress_count = %s,
+                                    leaf_disease_count = %s
+                                WHERE id = %s
+                            """, (
+                                results.get("grape_count"),
+                                results.get("health_prediction"),
+                                results.get("liters_estimated"),
+                                results.get("processed_image_url"),
+                                results.get("leaf_healthy_count", 0),
+                                results.get("leaf_stress_count", 0),
+                                results.get("leaf_disease_count", 0),
+                                record_id
+                            ))
+                            conn.commit()
+                    print(f"--- ✅ Backlog Analysis: ID {record_id} completed ---")
+                else:
+                    # Mark as failed/missing to avoid infinite loop
+                    print(f"--- ⚠️ Backlog Analysis: ID {record_id} failed or file missing. Marking to skip. ---")
+                    with psycopg.connect(DB_CONNINFO) as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("UPDATE sensor_data SET grape_count = -1 WHERE id = %s", (record_id,))
+                            conn.commit()
+                
+                # Small sleep to avoid over-taxing the CPU if there are many
+                time.sleep(1)
+
+        except Exception as e:
+            print(f"Background AI Worker Error: {e}")
+            time.sleep(10)
+
 def main():
     connect_db()
+    
+    # Start the backlog processor in a separate thread
+    backlog_thread = threading.Thread(target=process_backlog, daemon=True)
+    backlog_thread.start()
+    
     client = build_mqtt_client()
 
     while True:

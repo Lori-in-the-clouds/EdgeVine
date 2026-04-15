@@ -2,117 +2,149 @@ import type { APIRoute } from 'astro';
 import { sql } from '../../../lib/db';
 
 export const GET: APIRoute = async ({ url }) => {
+  const range = url.searchParams.get('range') || '24h';
+  
+  let timeInterval = "INTERVAL '24 hours'";
+  let grouping = "hour";
+  let dateFormat = "HH:00";
+
+  if (range === '7d') {
+    timeInterval = "INTERVAL '7 days'";
+    grouping = "day";
+    dateFormat = "DD/MM";
+  } else if (range === '30d') {
+    timeInterval = "INTERVAL '30 days'";
+    grouping = "day";
+    dateFormat = "DD/MM";
+  } else if (range === '90d') {
+    timeInterval = "INTERVAL '90 days'";
+    grouping = "week";
+    dateFormat = "WW";
+  } else if (range === '1y') {
+    timeInterval = "INTERVAL '1 year'";
+    grouping = "month";
+    dateFormat = "MM/YY";
+  }
+
   try {
-    const range = url.searchParams.get('range') || '24h';
-    
-    // Configurazione dinamica della query in base all'intervallo richiesto
-    let interval: string;
-    let grouping: string;
-    let dateFormat: string;
-
-    switch (range) {
-      case '7d':
-        interval = '7 days';
-        grouping = 'day';
-        dateFormat = 'DD/MM';
-        break;
-      case '30d':
-        interval = '30 days';
-        grouping = 'day';
-        dateFormat = 'DD/MM';
-        break;
-      case '90d':
-        interval = '90 days';
-        grouping = 'week';
-        dateFormat = 'DD/MM';
-        break;
-      case '1y':
-        interval = '1 year';
-        grouping = 'month';
-        dateFormat = 'Mon YY';
-        break;
-      case '24h':
-      default:
-        interval = '24 hours';
-        grouping = 'hour';
-        dateFormat = 'HH24:00';
-        break;
-    }
-
-    // 1. Calcolo Medie Attuali (KPI Globali) delle ultime 6 ore
+    // 1. Statistiche Globali (Ultima lettura conosciuta per ogni sensore)
     const currentStats = await sql<any>(`
+      WITH latest_readings AS (
+        SELECT DISTINCT ON (sensor_id) 
+          temperature, humidity, moisture, sensor_id 
+        FROM sensor_data 
+        ORDER BY sensor_id, timestamp DESC
+      )
       SELECT 
         AVG(temperature) as avg_temp,
         AVG(humidity) as avg_hum,
         AVG(moisture) as avg_moist,
-        COUNT(DISTINCT vine_zone_id) as total_nodes
-      FROM sensor_data 
-      WHERE timestamp > NOW() - INTERVAL '6 hours'
-    `);
-
-    // 2. Analisi Stress Idrico
-    const healthAlerts = await sql<any>(`
-      WITH latest_readings AS (
-        SELECT DISTINCT ON (vine_zone_id) moisture, vine_zone_id
-        FROM sensor_data
-        ORDER BY vine_zone_id, timestamp DESC
-      )
-      SELECT COUNT(*) as critical_count
+        COUNT(*) as total_nodes
       FROM latest_readings
-      WHERE moisture < 20
     `);
 
-    // 3. Storico DINAMICO (Raggruppato per il periodo scelto)
+    // 2. Analisi Salute GRANULARE (Conteggio Foglie AI)
+    const healthData = await sql<any>(`
+      WITH latest_zone_status AS (
+        SELECT DISTINCT ON (sensor_id) 
+          leaf_healthy_count, 
+          leaf_stress_count, 
+          leaf_disease_count,
+          sensor_id
+        FROM sensor_data
+        ORDER BY sensor_id, timestamp DESC
+      )
+      SELECT 
+        SUM(leaf_healthy_count) as total_healthy,
+        SUM(leaf_stress_count) as total_stress,
+        SUM(leaf_disease_count) as total_disease
+      FROM latest_zone_status
+    `);
+
+    // 3. Storico DINAMICO
     const history = await sql<any>(`
       SELECT 
         TO_CHAR(date_trunc($1, timestamp), $2) as time,
-        ROUND(AVG(temperature)::numeric, 1) as temperature,
-        ROUND(AVG(humidity)::numeric, 1) as humidity,
-        ROUND(AVG(moisture)::numeric, 1) as moisture,
-        date_trunc($1, timestamp) as sort_key
+        AVG(temperature) as temperature,
+        AVG(humidity) as humidity,
+        AVG(moisture) as moisture
       FROM sensor_data
-      WHERE timestamp > NOW() - $3::interval
-      GROUP BY date_trunc($1, timestamp)
-      ORDER BY sort_key ASC
-    `, [grouping, dateFormat, interval]);
+      WHERE timestamp > NOW() - ${timeInterval}
+      GROUP BY 1
+      ORDER BY MIN(timestamp) ASC
+    `, [grouping, dateFormat]);
 
-    // 4. Logica Previsionale
-    const baseYieldPerNode = 250;
-    const nodes = parseInt(currentStats.rows[0].total_nodes || "0");
-    const avgMoist = parseFloat(currentStats.rows[0].avg_moist || "0");
-    const moistureFactor = avgMoist > 0 ? Math.min(avgMoist / 35, 1.2) : 0;
-    const predictedWine = Math.round(baseYieldPerNode * nodes * moistureFactor);
+    // 4. Ultime Acquisizioni Visione Artificiale
+    const captures = await sql<any>(`
+      SELECT 
+        sd.id,
+        COALESCE(vz.name, vz.external_id) as sensor_name,
+        sd.timestamp,
+        TO_CHAR(sd.timestamp, 'DD/MM') as date,
+        TO_CHAR(sd.timestamp, 'HH24:MI') as time,
+        sd.image_url,
+        sd.grape_count,
+        sd.health_status,
+        sd.estimated_liters,
+        sd.processed_image_url
+      FROM sensor_data sd
+      JOIN vine_zone vz ON vz.id = sd.sensor_id
+      WHERE sd.image_url IS NOT NULL
+      ORDER BY sd.timestamp DESC
+      LIMIT 20
+    `);
+
+    // 5. Logica Previsionale basata su AI
+    const aiPrediction = await sql<any>(`
+      WITH latest_ai AS (
+        SELECT DISTINCT ON (sensor_id) estimated_liters
+        FROM sensor_data
+        WHERE estimated_liters IS NOT NULL
+        ORDER BY sensor_id, timestamp DESC
+      )
+      SELECT SUM(estimated_liters) as total_predicted_liters
+      FROM latest_ai
+    `);
+
+    const leafHealthy = parseInt(healthData.rows[0].total_healthy || 0);
+    const leafStress = parseInt(healthData.rows[0].total_stress || 0);
+    const leafDisease = parseInt(healthData.rows[0].total_disease || 0);
+    const totalLeaves = leafHealthy + leafStress + leafDisease;
+
+    const totalZones = await sql<any>(`SELECT COUNT(*) FROM vine_zone`).then(res => parseInt(res.rows[0].count || 0));
 
     const data = {
       global: {
-        temp: Math.round(currentStats.rows[0].avg_temp || 0),
-        hum: Math.round(currentStats.rows[0].avg_hum || 0),
-        moist: parseFloat((currentStats.rows[0].avg_moist || 0).toFixed(1)),
-        nodes: nodes
+        nodes: totalZones,
+        temp: Math.round(parseFloat(currentStats.rows[0].avg_temp || "0") * 10) / 10,
+        hum: Math.round(parseFloat(currentStats.rows[0].avg_hum || "0") * 10) / 10,
+        moist: Math.round(parseFloat(currentStats.rows[0].avg_moist || "0") * 10) / 10
       },
       health: {
-        critical: parseInt(healthAlerts.rows[0].critical_count || 0),
-        stable_pct: nodes > 0 
-          ? Math.round(((nodes - parseInt(healthAlerts.rows[0].critical_count || 0)) / nodes) * 100) 
+        healthy: leafHealthy,
+        stress: leafStress,
+        disease: leafDisease,
+        stable_pct: totalLeaves > 0 
+          ? Math.round((leafHealthy / totalLeaves) * 100) 
           : 0
       },
       production: {
-        estimated_liters: predictedWine,
-        confidence: 85,
-        leaves_analyzed: nodes * 2500
+        estimated_liters: Math.round(parseFloat(aiPrediction.rows[0].total_predicted_liters || "0")),
+        confidence: 94,
+        leaves_analyzed: totalLeaves
       },
-      chartData: history.rows
+      chartData: history.rows,
+      recentCaptures: captures.rows
     };
 
     return new Response(JSON.stringify({ success: true, data }), {
       status: 200,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache'
-      }
+      headers: { 'Content-Type': 'application/json' }
     });
-  } catch (err: any) {
-    return new Response(JSON.stringify({ success: false, error: err.message }), { 
+
+  } catch (error: any) {
+    console.error("Stats API Error:", error);
+    return new Response(JSON.stringify({ success: false, error: error.message }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' }
     });

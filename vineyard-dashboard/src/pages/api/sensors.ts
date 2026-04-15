@@ -15,13 +15,14 @@ export const GET: APIRoute = async () => {
         sd.temperature, 
         sd.humidity, 
         sd.moisture,
-        sd.timestamp
+        sd.timestamp,
+        sd.image_url
       FROM vine_zone vz
       JOIN vineyard v ON v.id = vz.vineyard_id
       LEFT JOIN LATERAL (
-        SELECT temperature, humidity, moisture, timestamp
+        SELECT temperature, humidity, moisture, timestamp, image_url
         FROM sensor_data 
-        WHERE vine_zone_id = vz.id 
+        WHERE sensor_id = vz.id 
         ORDER BY timestamp DESC 
         LIMIT 1
       ) sd ON true

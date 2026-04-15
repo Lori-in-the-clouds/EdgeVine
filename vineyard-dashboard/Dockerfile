@@ -1,22 +1,32 @@
-# Usa l'immagine ufficiale di Node.js
-FROM node:22-alpine
+# Usa un'immagine Debian-based
+FROM node:22-slim
 
-# Imposta la cartella di lavoro nel container
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 1. Installa Python e dipendenze di sistema
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Crea un ambiente virtuale per l'IA (metodo più pulito per evitare PEP 668)
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# 3. Installa le librerie IA dentro l'ambiente virtuale
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir ultralytics opencv-python-headless matplotlib numpy torch torchvision
+
 WORKDIR /app
 
-# Copia i file delle dipendenze
-# Nota: assicurati di avere eseguito 'npm install' sul Mac prima, 
-# così il package-lock.json è aggiornato con Leaflet
 COPY package.json package-lock.json ./
-
-# Installa le dipendenze
 RUN npm install --legacy-peer-deps
 
-# Copia il resto del codice del progetto
 COPY . .
 
-# Esponi la porta di Astro (default 4321)
 EXPOSE 4321
 
-# Comando per avviare Astro in modalità sviluppo con accesso esterno
 CMD ["npm", "run", "dev", "--", "--host"]

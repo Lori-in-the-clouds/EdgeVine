@@ -11,4 +11,7 @@ vineyard-dashboard/.idea/
 
 .venv/
 
+*.png
+!BoxPR_curve.png
+!confusion_matrix_normalized.png
 mqtt-server/mqtt-subscriber/__pycache__/
