@@ -10,11 +10,7 @@ services:
       - ./mosquitto/log:/mosquitto/log
     restart: unless-stopped
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "mosquitto_sub -h localhost -p 1883 -u arduino -P mosquitto -t '$$SYS/broker/uptime' -C 1 || exit 1"
-        ]
+      test: [ "CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -u arduino -P mosquitto -t '$$SYS/broker/uptime' -C 1 || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -33,7 +29,7 @@ services:
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U sensore_user -d sensori || exit 1"]
+      test: [ "CMD-SHELL", "pg_isready -U sensore_user -d sensori || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -56,8 +52,8 @@ services:
       VINEYARD_NAME: Demo Vineyard
       VINEYARD_OWNER: EdgeVine
       VINEYARD_ALTITUDE: 200
-      VINEYARD_LATITUDE: 45.000000
-      VINEYARD_LONGITUDE: 11.000000
+      VINEYARD_LATITUDE: 43.0573
+      VINEYARD_LONGITUDE: 11.4891
       AUTO_CREATE_VINEYARD: "true"
     depends_on:
       mosquitto:
@@ -69,26 +65,24 @@ services:
       - ../CV:/CV
       - ../vineyard-dashboard/public/captures:/app/public/captures
       - ../vineyard-dashboard/public/cv_results:/app/public/cv_results
+      - ./analytics/archive:/app/archive
     restart: unless-stopped
 
   vineyard-dashboard:
     build: ../vineyard-dashboard
     container_name: vineyard-dashboard
     environment:
-      # Database
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: sensori
       POSTGRES_USER: sensore_user
       POSTGRES_PASSWORD: sensore_password
       DATABASE_URL: "postgresql://sensore_user:sensore_password@postgres:5432/sensori"
-      # Soglie Sensori
       ZONE_STALE_MINUTES: 30
       ZONE_TEMPERATURE_MIN: 5
       ZONE_TEMPERATURE_MAX: 35
       ZONE_HUMIDITY_MIN: 35
       ZONE_MOISTURE_MIN: 250
-      # Astro specifica: forza l'host per rendere visibile il sito fuori dal container
       HOST: 0.0.0.0
       PORT: 4321
     depends_on:
@@ -96,11 +90,10 @@ services:
         condition: service_healthy
     volumes:
       - ../vineyard-dashboard:/app
-      - /app/node_modules # Evita che il node_modules del Mac sovrascriva quello del container
+      - /app/node_modules
       - ../CV:/CV
     ports:
-      # Mappiamo la porta 4321 del Mac alla 4321 del container
-      - "${DASHBOARD_PORT:-4321}:4321"
+      - "4321:4321"
     restart: unless-stopped
 
 volumes:

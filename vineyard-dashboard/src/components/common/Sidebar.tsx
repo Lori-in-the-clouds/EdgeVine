@@ -51,10 +51,6 @@ export function Sidebar({ initialPath = '' }: { initialPath?: string }) {
         })}
       </nav>
 
-      {/* Footer Branding */}
-      <div className="mt-auto px-2 py-4 opacity-20 hover:opacity-100 transition-opacity">
-        <p className="text-[8px] font-bold text-stone-500 uppercase tracking-[0.2em]">TerraForge Systems</p>
-      </div>
     </aside>
   );
 }

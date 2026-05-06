@@ -1,0 +1,10 @@
+pandas
+sqlalchemy
+psycopg2-binary
+pyarrow
+scikit-learn
+openmeteo-requests
+requests-cache
+retry-requests
+matplotlib
+seaborn

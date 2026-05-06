@@ -8,6 +8,14 @@ from threading import Lock
 
 import paho.mqtt.client as mqtt
 import psycopg
+import shutil
+import threading
+import subprocess
+import pandas as pd
+from sqlalchemy import create_engine
+import openmeteo_requests
+import requests_cache
+from retry_requests import retry
 
 MQTT_BROKER = os.getenv("MQTT_BROKER", "mosquitto")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
@@ -219,7 +227,17 @@ def get_or_create_sensor_id(zone_identifier):
     return zone_id
 
 
-import subprocess
+def extract_json(stdout):
+    """Robustly extracts JSON from a string that might contain other text (like YOLO banners)"""
+    try:
+        # Tenta il match più esterno di parentesi graffe
+        import re
+        match = re.search(r'(\{.*\})', stdout, re.DOTALL)
+        if match:
+            return json.loads(match.group(1))
+        return json.loads(stdout.strip())
+    except Exception:
+        return None
 
 def run_ai_analysis(image_path):
     """Runs the YOLO inference script and returns results"""
@@ -231,35 +249,62 @@ def run_ai_analysis(image_path):
         print(f"--- ⚠️ Skipping non-local image URL: {image_path} ---")
         return None
         
-    # Path inside the Docker container
-    if image_path.startswith('/'):
-        abs_image_path = f"/app/public{image_path}" if image_path.startswith('/captures') else image_path
+    # Detect if we are in Docker or local
+    is_docker = os.path.exists("/.dockerenv")
+    
+    if is_docker:
+        if image_path.startswith('/'):
+            abs_image_path = f"/app/public{image_path}" if image_path.startswith('/captures') else image_path
+        else:
+            abs_image_path = f"/app/public/captures/{image_path}" if not image_path.startswith('captures') else f"/app/public/{image_path}"
+        python_script = "/CV/inference.py"
+        python_cmd = "python3"
     else:
-        abs_image_path = f"/app/public/captures/{image_path}" if not image_path.startswith('captures') else f"/app/public/{image_path}"
+        # Local path handling
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+        if image_path.startswith('/'):
+            abs_image_path = os.path.join(project_root, "vineyard-dashboard/public", image_path.lstrip('/'))
+        else:
+            abs_image_path = os.path.join(project_root, "vineyard-dashboard/public/captures", image_path)
+        python_script = os.path.join(project_root, "CV/inference.py")
+        python_cmd = "python3"
 
-    python_script = "/CV/inference.py"
     save_name = f"auto_{os.path.basename(image_path)}"
     
+    if not os.path.exists(abs_image_path):
+        print(f"--- ❌ Image file not found: {abs_image_path} ---")
+        return None
+
     try:
-        # We run the script and capture JSON output with a 120s timeout
+        # We run the script and capture JSON output
         result = subprocess.run(
-            ["python3", python_script, abs_image_path, save_name],
+            [python_cmd, python_script, abs_image_path, save_name],
             capture_output=True, text=True, check=True, timeout=120
         )
         
-        # Move the newly created image to the public outputs folder
-        import shutil
-        generated_path = f"/CV/images/{save_name}"
-        final_path = f"/app/public/cv_results/{save_name}"
-        
+        parsed_results = extract_json(result.stdout)
+        if not parsed_results:
+            print(f"--- ❌ Failed to parse JSON from AI script output: {result.stdout[:200]}... ---")
+            return None
+
+        # Path definitions for results movement
+        if is_docker:
+            generated_path = f"/CV/images/{save_name}"
+            final_path = f"/app/public/cv_results/{save_name}"
+        else:
+            generated_path = os.path.join(project_root, "CV/images", save_name)
+            final_path = os.path.join(project_root, "vineyard-dashboard/public/cv_results", save_name)
+
         if os.path.exists(generated_path):
             os.makedirs(os.path.dirname(final_path), exist_ok=True)
             shutil.copy2(generated_path, final_path)
             os.remove(generated_path)
             
-        return json.loads(result.stdout.strip())
+        return parsed_results
     except Exception as e:
-        print(f"AI Analysis Error: {e}")
+        print(f"AI Analysis Error for {image_path}: {e}")
+        if hasattr(e, 'stderr') and e.stderr:
+            print(f"Stderr: {e.stderr}")
         return None
 
 def async_ai_analysis(record_id, image_url):
@@ -496,7 +541,6 @@ def build_mqtt_client():
     return client
 
 
-import threading
 
 def process_backlog():
     """Scans the database for images without analysis and processes them in background"""
@@ -566,12 +610,112 @@ def process_backlog():
             print(f"Background AI Worker Error: {e}")
             time.sleep(10)
 
+def run_analytics_worker():
+    """Thread per la sincronizzazione dei dati e del meteo in formato Parquet"""
+    print("--- 📊 Analytics Worker: Avviato ---")
+    PARQUET_PATH = "/app/archive/dataset_vigna.parquet"
+    SYNC_INTERVAL = 3600 # 1 ora
+    
+    # Assicuriamoci che la cartella archive esista
+    os.makedirs(os.path.dirname(PARQUET_PATH), exist_ok=True)
+
+    def get_weather_data(lat, lon, start_date, end_date):
+        cache_session = requests_cache.CachedSession('.cache', expire_after=-1)
+        retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
+        openmeteo = openmeteo_requests.Client(session=retry_session)
+        url = "https://archive-api.open-meteo.com/v1/archive"
+        params = {
+            "latitude": lat, "longitude": lon,
+            "start_date": start_date, "end_date": end_date,
+            "hourly": ["temperature_2m", "relative_humidity_2m", "rain"]
+        }
+        responses = openmeteo.weather_api(url, params=params)
+        response = responses[0]
+        hourly = response.Hourly()
+        return pd.DataFrame(data={
+            "timestamp": pd.date_range(
+                start=pd.to_datetime(hourly.Time(), unit="s", utc=True),
+                end=pd.to_datetime(hourly.TimeEnd(), unit="s", utc=True),
+                freq=pd.Timedelta(seconds=hourly.Interval()), inclusive="left"
+            ),
+            "weather_temp": hourly.Variables(0).ValuesAsNumpy(),
+            "weather_humidity": hourly.Variables(1).ValuesAsNumpy(),
+            "weather_rain": hourly.Variables(2).ValuesAsNumpy()
+        })
+
+    while True:
+        try:
+            print(f"[{datetime.now()}] Analytics: Inizio sync incrementale...")
+            
+            # 1. Carica storico
+            df_old = pd.DataFrame()
+            last_ts = None
+            if os.path.exists(PARQUET_PATH):
+                df_old = pd.read_parquet(PARQUET_PATH)
+                if not df_old.empty:
+                    # Forza il timestamp a UTC se caricato come naive
+                    df_old['timestamp'] = pd.to_datetime(df_old['timestamp']).dt.tz_localize('UTC', ambiguous='infer')
+                    last_ts = df_old['timestamp'].max()
+
+            # 2. Leggi nuovi dati da DB con JOIN per avere il numero del settore
+            engine = create_engine(f'postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}')
+            query = """
+                SELECT sd.*, vz.number as sector_id, vz.external_id 
+                FROM sensor_data sd
+                JOIN vine_zone vz ON sd.sensor_id = vz.id
+            """
+            if last_ts:
+                query += f" WHERE sd.timestamp > '{last_ts.strftime('%Y-%m-%d %H:%M:%S')}'"
+            
+            df_new = pd.read_sql(query, engine)
+            
+            if not df_new.empty:
+                df_new['timestamp'] = pd.to_datetime(df_new['timestamp'], utc=True).dt.round('h')
+                start_d = df_new['timestamp'].min().strftime('%Y-%m-%d')
+                end_d = df_new['timestamp'].max().strftime('%Y-%m-%d')
+                
+                # 3. Meteo e Merge (get_weather_data restituisce UTC aware)
+                df_weather = get_weather_data(VINEYARD_LATITUDE, VINEYARD_LONGITUDE, start_d, end_d)
+                df_merged = pd.merge(df_new, df_weather, on='timestamp', how='left')
+                
+                # 4. Unisci e Pulisci
+                df_final = pd.concat([df_old, df_merged])
+                df_final = df_final.drop_duplicates(subset=['sensor_id', 'timestamp'], keep='last').sort_values('timestamp')
+                df_final = df_final.reset_index(drop=True)
+
+                # Rimuoviamo le colonne delle immagini (non utili per analisi numerica)
+                cols_to_drop = ['image_url', 'processed_image_url']
+                df_final = df_final.drop(columns=[c for c in cols_to_drop if c in df_final.columns])
+
+                # Rimuoviamo il fuso orario e convertiamo in STRINGA per massima compatibilità
+                df_to_save = df_final.copy()
+                df_to_save['timestamp'] = df_to_save['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                print(f"--- 📊 Analytics: Tipi di dati in salvataggio:\n{df_to_save.dtypes} ---")
+                print(f"--- 📊 Analytics: Prime righe:\n{df_to_save[['sensor_id', 'timestamp']].head()} ---")
+                
+                df_to_save.to_parquet(PARQUET_PATH, index=False)
+                print(f"--- ✅ Analytics: Archivio aggiornato con successo. Record totali: {len(df_final)} ---")
+            else:
+                print("--- 📊 Analytics: Nessun nuovo dato da archiviare. ---")
+
+        except Exception as e:
+            print(f"--- ⚠️ Analytics Error: {e} ---")
+            import traceback
+            traceback.print_exc()
+            
+        time.sleep(SYNC_INTERVAL)
+
 def main():
     connect_db()
     
     # Start the backlog processor in a separate thread
     backlog_thread = threading.Thread(target=process_backlog, daemon=True)
     backlog_thread.start()
+
+    # Start the analytics worker thread
+    analytics_thread = threading.Thread(target=run_analytics_worker, daemon=True)
+    analytics_thread.start()
     
     client = build_mqtt_client()
 

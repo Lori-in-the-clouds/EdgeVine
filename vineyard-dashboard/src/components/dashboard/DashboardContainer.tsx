@@ -6,6 +6,7 @@ export function DashboardContainer() {
   const [stats, setStats] = useState({ area: '---', count: 0, lat: 43.4633, lng: 11.3126 });
   const [weather, setWeather] = useState<{ temp: number | null, hum: number | null }>({ temp: null, hum: null });
   const [sectorCount, setSectorCount] = useState(0);
+  const [activeLayer, setActiveLayer] = useState<'none' | 'precipitation' | 'temperature' | 'wind'>('none');
 
   useEffect(() => {
     // Fetch sector count for the overlay
@@ -109,33 +110,39 @@ export function DashboardContainer() {
         </div>
       </div>
 
-      {/* Floating Weather Widget */}
-      <div className="absolute bottom-8 left-8 z-[1000] pointer-events-none flex gap-4">
-        <div className="bg-black/80 backdrop-blur-3xl p-5 rounded-[2rem] border border-white/10 shadow-2xl flex items-center gap-6">
-          <div className="flex items-center gap-4">
-            <div className="bg-amber-500/10 p-3 rounded-2xl border border-amber-500/20">
-               <ThermometerSun className="h-5 w-5 text-amber-500" />
+      {/* Floating Weather Widget - Hidden when any radar layer is active */}
+      {activeLayer === 'none' && (
+        <div className="absolute bottom-8 left-8 z-[1000] pointer-events-none flex gap-4 transition-all duration-500 animate-in fade-in slide-in-from-bottom-4">
+          <div className="bg-black/80 backdrop-blur-3xl p-5 rounded-[2rem] border border-white/10 shadow-2xl flex items-center gap-6">
+            <div className="flex items-center gap-4">
+              <div className="bg-amber-500/10 p-3 rounded-2xl border border-amber-500/20">
+                 <ThermometerSun className="h-5 w-5 text-amber-500" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Temperature</span>
+                <span className="text-xl font-black text-white tracking-tighter">{weather.temp !== null ? `${weather.temp}°C` : '--'}</span>
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Temperature</span>
-              <span className="text-xl font-black text-white tracking-tighter">{weather.temp !== null ? `${weather.temp}°C` : '--'}</span>
-            </div>
-          </div>
-          <div className="h-10 w-px bg-white/5 mx-2"></div>
-          <div className="flex items-center gap-4">
-            <div className="bg-blue-500/10 p-3 rounded-2xl border border-blue-500/20">
-               <Droplets className="h-5 w-5 text-blue-400" />
-            </div>
-            <div className="flex flex-col">
-              <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Local Humidity</span>
-              <span className="text-xl font-black text-white tracking-tighter">{weather.hum !== null ? `${weather.hum}%` : '--'}</span>
+            <div className="h-10 w-px bg-white/5 mx-2"></div>
+            <div className="flex items-center gap-4">
+              <div className="bg-blue-500/10 p-3 rounded-2xl border border-blue-500/20">
+                 <Droplets className="h-5 w-5 text-blue-400" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Local Humidity</span>
+                <span className="text-xl font-black text-white tracking-tighter">{weather.hum !== null ? `${weather.hum}%` : '--'}</span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Map Implementation */}
-      <DashboardMap onStatsUpdate={(area, count, lat, lng) => setStats({ area, count, lat, lng })} />
+      <DashboardMap 
+        activeLayer={activeLayer}
+        setActiveLayer={setActiveLayer}
+        onStatsUpdate={(area, count, lat, lng) => setStats({ area, count, lat, lng })} 
+      />
     </div>
 
   );

@@ -73,7 +73,7 @@ export function VisionConsole() {
           ) : (
             <div className="w-full h-full relative group/img">
               <img 
-                src={result?.processed_image || previewUrl} 
+                src={result?.processed_image_url || previewUrl} 
                 className={`w-full h-full object-contain rounded-[2.5rem] transition-all duration-700 ${isAnalyzing ? 'blur-md grayscale opacity-50' : ''}`} 
               />
               

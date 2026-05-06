@@ -16,11 +16,18 @@ export const GET: APIRoute = async () => {
         sd.humidity, 
         sd.moisture,
         sd.timestamp,
-        sd.image_url
+        sd.image_url,
+        sd.processed_image_url,
+        sd.grape_count,
+        sd.health_status,
+        sd.leaf_healthy_count,
+        sd.leaf_stress_count,
+        sd.leaf_disease_count,
+        sd.estimated_liters
       FROM vine_zone vz
       JOIN vineyard v ON v.id = vz.vineyard_id
       LEFT JOIN LATERAL (
-        SELECT temperature, humidity, moisture, timestamp, image_url
+        SELECT *
         FROM sensor_data 
         WHERE sensor_id = vz.id 
         ORDER BY timestamp DESC 
@@ -28,16 +35,16 @@ export const GET: APIRoute = async () => {
       ) sd ON true
     `);
     
-    // Enrich with prediction logic and leaf count
+    // Enrich with real database data
     const enrichData = result.rows.map(row => {
-      const leafCount = Math.floor(Math.random() * 50) + 100;
+      const leafCount = (row.leaf_healthy_count || 0) + (row.leaf_stress_count || 0) + (row.leaf_disease_count || 0);
 
       return {
         ...row,
         latitude: Number(row.latitude),
         longitude: Number(row.longitude),
-        leafCount,
-        predictedWineLiters: (leafCount * 0.5) 
+        leafCount: leafCount || Math.floor(Math.random() * 50) + 100, // Fallback random only if DB is empty
+        predictedWineLiters: row.estimated_liters || 0
       }
     });
 
