@@ -3,12 +3,12 @@ import { LayoutDashboard, Network, BarChart3 } from 'lucide-react';
 
 export function Sidebar({ initialPath = '' }: { initialPath?: string }) {
   const [currentPath, setCurrentPath] = React.useState(initialPath);
- 
-   React.useEffect(() => {
-     if (typeof window !== 'undefined') {
-       setCurrentPath(window.location.pathname);
-     }
-   }, []);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setCurrentPath(window.location.pathname);
+    }
+  }, []);
 
   const navItems = [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
@@ -31,18 +31,17 @@ export function Sidebar({ initialPath = '' }: { initialPath?: string }) {
       {/* Navigation Section */}
       <nav className="flex-grow space-y-2 mt-2">
         {navItems.map((item) => {
-          const isActive = item.path === '/' 
+          const isActive = item.path === '/'
             ? (currentPath === '/' || currentPath === '/index.html')
             : currentPath.startsWith(item.path);
           return (
             <a
               key={item.path}
               href={item.path}
-              className={`flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-300 group ${
-                isActive 
-                  ? 'bg-[#228B22] text-white shadow-lg shadow-green-900/20 scale-[1.02]' 
+              className={`flex items-center gap-3 rounded-2xl px-4 py-3 transition-all duration-300 group ${isActive
+                  ? 'bg-[#228B22] text-white shadow-lg shadow-green-900/20 scale-[1.02]'
                   : 'text-stone-500 hover:text-[#228B22] hover:bg-white/50'
-              }`}
+                }`}
             >
               <item.icon className={`h-5 w-5 transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`} />
               <span className={`font-semibold text-sm font-inter ${isActive ? 'opacity-100' : 'opacity-80'}`}>{item.label}</span>
