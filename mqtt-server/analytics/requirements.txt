@@ -8,3 +8,7 @@ requests-cache
 retry-requests
 matplotlib
 seaborn
+prophet
+plotly
+flask
+gunicorn
