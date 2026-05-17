@@ -1,0 +1,15 @@
+---
+import MasterLayout from '../layouts/MasterLayout.astro';
+import { SettingsDashboard } from '../components/settings/SettingsDashboard';
+---
+
+<MasterLayout title="Settings">
+  <div class="max-w-4xl mx-auto py-8">
+    <div class="mb-8">
+      <h1 class="text-4xl font-manrope font-black text-stone-800 tracking-tight">System Settings</h1>
+      <p class="text-stone-400 font-inter text-sm mt-2">Configure EdgeVine AI vision parameters and global properties.</p>
+    </div>
+    
+    <SettingsDashboard client:only="react" />
+  </div>
+</MasterLayout>

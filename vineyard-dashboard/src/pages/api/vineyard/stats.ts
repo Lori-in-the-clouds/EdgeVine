@@ -74,37 +74,60 @@ export const GET: APIRoute = async ({ url }) => {
       ORDER BY MIN(timestamp) ASC
     `, [grouping, dateFormat]);
 
-    // 4. Ultime Acquisizioni Visione Artificiale
+    // Fetch uncertainty setting from db
+    let uncertainty = 10;
+    try {
+      const setRes = await sql<any>(`SELECT value FROM app_settings WHERE key = 'vision'`);
+      if (setRes.rows.length > 0) {
+        const val = typeof setRes.rows[0].value === 'string' ? JSON.parse(setRes.rows[0].value) : setRes.rows[0].value;
+        if (val && typeof val.depth_uncertainty_pct === 'number') {
+          uncertainty = val.depth_uncertainty_pct;
+        }
+      }
+    } catch(e) { console.warn("Failed to fetch settings, using default uncertainty"); }
+
+    const uFactorMin = Math.pow(1 - uncertainty / 100, 2);
+    const uFactorMax = Math.pow(1 + uncertainty / 100, 2);
+
+    // 4. Ultime Acquisizioni Visione Artificiale (deduplicate by image_url)
     const captures = await sql<any>(`
-      SELECT 
-        sd.id,
-        COALESCE(vz.name, vz.external_id) as sensor_name,
-        sd.timestamp,
-        TO_CHAR(sd.timestamp, 'DD/MM') as date,
-        TO_CHAR(sd.timestamp, 'HH24:MI') as time,
-        sd.image_url,
-        sd.grape_count,
-        sd.health_status,
-        sd.estimated_liters,
-        sd.processed_image_url
-      FROM sensor_data sd
-      JOIN vine_zone vz ON vz.id = sd.sensor_id
-      WHERE sd.image_url IS NOT NULL
-      ORDER BY sd.timestamp DESC
+      SELECT * FROM (
+        SELECT DISTINCT ON (sd.image_url)
+          sd.id,
+          COALESCE(vz.name, vz.external_id) as sensor_name,
+          sd.timestamp,
+          TO_CHAR(sd.timestamp, 'DD/MM') as date,
+          TO_CHAR(sd.timestamp, 'HH24:MI') as time,
+          sd.image_url,
+          sd.grape_count,
+          sd.health_status,
+          sd.estimated_liters,
+          COALESCE(sd.estimated_liters_min, sd.estimated_liters * $1) as estimated_liters_min,
+          COALESCE(sd.estimated_liters_max, sd.estimated_liters * $2) as estimated_liters_max,
+          sd.processed_image_url
+        FROM sensor_data sd
+        JOIN vine_zone vz ON vz.id = sd.sensor_id
+        WHERE sd.image_url IS NOT NULL
+        ORDER BY sd.image_url, sd.timestamp DESC
+      ) sub
+      ORDER BY sub.timestamp DESC
       LIMIT 20
-    `);
+    `, [uFactorMin, uFactorMax]);
 
     // 5. Logica Previsionale basata su AI
     const aiPrediction = await sql<any>(`
       WITH latest_ai AS (
-        SELECT DISTINCT ON (sensor_id) estimated_liters
+        SELECT DISTINCT ON (sensor_id) estimated_liters, estimated_liters_min, estimated_liters_max
         FROM sensor_data
         WHERE estimated_liters IS NOT NULL
         ORDER BY sensor_id, timestamp DESC
       )
-      SELECT SUM(estimated_liters) as total_predicted_liters
+      SELECT 
+        SUM(estimated_liters) as total_predicted_liters,
+        SUM(COALESCE(estimated_liters_min, estimated_liters * $1)) as total_predicted_min,
+        SUM(COALESCE(estimated_liters_max, estimated_liters * $2)) as total_predicted_max
       FROM latest_ai
-    `);
+    `, [uFactorMin, uFactorMax]);
 
     const leafHealthy = parseInt(healthData.rows[0].total_healthy || 0);
     const leafStress = parseInt(healthData.rows[0].total_stress || 0);
@@ -130,6 +153,8 @@ export const GET: APIRoute = async ({ url }) => {
       },
       production: {
         estimated_liters: Math.round(parseFloat(aiPrediction.rows[0].total_predicted_liters || "0")),
+        estimated_liters_min: Math.round(parseFloat(aiPrediction.rows[0].total_predicted_min || "0")),
+        estimated_liters_max: Math.round(parseFloat(aiPrediction.rows[0].total_predicted_max || "0")),
         confidence: 94,
         leaves_analyzed: totalLeaves
       },

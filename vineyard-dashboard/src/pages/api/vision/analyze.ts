@@ -50,9 +50,22 @@ export const POST: APIRoute = async ({ request }) => {
     const pythonScriptPath = path.join(process.cwd(), '..', 'CV', 'inference.py');
     const pythonExecutable = 'python3'; 
     
-    console.log(`🚀 RUNNING_AI: ${fileName} using ${pythonScriptPath}`);
+    // Fetch uncertainty setting from db
+    const { sql } = await import('../../../lib/db');
+    let uncertainty = 10;
+    try {
+      const setRes = await sql<any>(`SELECT value FROM app_settings WHERE key = 'vision'`);
+      if (setRes.rows.length > 0) {
+        const val = typeof setRes.rows[0].value === 'string' ? JSON.parse(setRes.rows[0].value) : setRes.rows[0].value;
+        if (val && typeof val.depth_uncertainty_pct === 'number') {
+          uncertainty = val.depth_uncertainty_pct;
+        }
+      }
+    } catch(e) { console.warn("Failed to fetch settings, using default uncertainty"); }
 
-    const command = `${pythonExecutable} "${pythonScriptPath}" "${inputPath}" "${outputName}"`;
+    console.log(`🚀 RUNNING_AI: ${fileName} using ${pythonScriptPath} with uncertainty ${uncertainty}%`);
+
+    const command = `${pythonExecutable} "${pythonScriptPath}" "${inputPath}" "${outputName}" "${uncertainty}"`;
 
     // 4. Execute Inference
     let stdout: string, stderr: string;

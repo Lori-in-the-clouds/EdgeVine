@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Network, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, Network, BarChart3, Settings } from 'lucide-react';
 
 export function Sidebar({ initialPath = '' }: { initialPath?: string }) {
   const [currentPath, setCurrentPath] = React.useState(initialPath);
@@ -14,6 +14,7 @@ export function Sidebar({ initialPath = '' }: { initialPath?: string }) {
     { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
     { label: 'Alerts & Network', icon: Network, path: '/alerts' },
     { label: 'Statistics', icon: BarChart3, path: '/statistics' },
+    { label: 'Settings', icon: Settings, path: '/settings' },
   ];
 
   return (

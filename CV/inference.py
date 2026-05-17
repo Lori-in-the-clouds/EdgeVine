@@ -72,9 +72,12 @@ class VineyardAnalyst:
 
         return results1,results2
 
-    def estimate_photo_liters(self, results_grape, imgsz):
+    def estimate_photo_liters(self, results_grape, imgsz, distance_override=None):
         """Estimates wine production (liters) for a single frame"""
-        pixel_to_mm = self.get_pixel_to_mm_ratio(imgsz)
+        dist = distance_override if distance_override is not None else self.distance
+        width_real_mm = (dist * self.sensor_width) / self.focal_length
+        pixel_to_mm = width_real_mm / imgsz
+        
         total_grams = 0
         
         for box in results_grape[0].boxes:
@@ -100,12 +103,18 @@ class VineyardAnalyst:
         return liters_per_meter * total_row_length_m
 
 
-    def analyze_json(self, image_path, save_name, total_row_meters=100):
+    def analyze_json(self, image_path, save_name, depth_uncertainty_pct=10.0, total_row_meters=100):
         """Helper for the Dashboard: runs inference and returns a JSON-serializable dict"""
         res_grape, res_disease = self.run_inference(image_path, save_path=save_name, print_prediction=False)
         
         # Calculate liters for this specific photo
         liters = self.estimate_photo_liters(res_grape, 640)
+        
+        # Calculate uncertainty bounds
+        dist_min = self.distance * (1 - depth_uncertainty_pct / 100.0)
+        dist_max = self.distance * (1 + depth_uncertainty_pct / 100.0)
+        liters_min = self.estimate_photo_liters(res_grape, 640, distance_override=dist_min)
+        liters_max = self.estimate_photo_liters(res_grape, 640, distance_override=dist_max)
         
         # Calculate leaf health counts
         leaf_healthy = 0
@@ -124,6 +133,8 @@ class VineyardAnalyst:
         
         return {
             "liters_estimated": round(liters, 2),
+            "liters_min": round(liters_min, 2),
+            "liters_max": round(liters_max, 2),
             "health_prediction": "Healthy" if leaf_disease == 0 and leaf_stress == 0 else "Disease Detected" if leaf_disease > 0 else "Stress Detected",
             "processed_image_url": f"/cv_results/{save_name}",
             "grape_count": len(res_grape[0].boxes) if res_grape else 0,
@@ -139,12 +150,13 @@ if __name__ == '__main__':
     # Redefine analyst with verbose=False to be sure
     analyst = VineyardAnalyst(MODEL_GRAPE_PATH, MODEL_DISEASE_PATH, camera_params)
     
-    # CLI usage: python3 inference.py <image_path> <save_name>
+    # CLI usage: python3 inference.py <image_path> <save_name> [uncertainty_pct]
     if len(sys.argv) > 2:
         try:
             img_path = sys.argv[1]
             out_name = sys.argv[2]
-            result = analyst.analyze_json(img_path, out_name)
+            uncertainty = float(sys.argv[3]) if len(sys.argv) > 3 else 10.0
+            result = analyst.analyze_json(img_path, out_name, depth_uncertainty_pct=uncertainty)
             # Ensure only the JSON is printed to stdout
             print(json.dumps(result))
         except Exception as e:
@@ -157,7 +169,7 @@ if __name__ == '__main__':
             result1, result2 = analyst.run_inference(test_path, save_path='test_result.png', print_prediction=False)
             print(f"Test complete. Liters: {analyst.estimate_photo_liters(result1, 640)}")
         else:
-            print("Usage: python inference.py <image_path> <save_name>")
+            print("Usage: python inference.py <image_path> <save_name> [uncertainty_pct]")
 
     
     

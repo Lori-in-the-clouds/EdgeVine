@@ -9,22 +9,11 @@ import React, { memo, createElement } from 'react';
 import ReactDOM from 'react-dom/server';
 import { serialize, parse } from 'cookie';
 import { createStorage } from 'unstorage';
-import fs, { createReadStream } from 'node:fs';
-import http from 'node:http';
-import https from 'node:https';
-import enableDestroy from 'server-destroy';
-import os from 'node:os';
-import { AsyncLocalStorage } from 'node:async_hooks';
-import path from 'node:path';
-import { Readable } from 'node:stream';
-import { Http2ServerResponse } from 'node:http2';
-import url from 'node:url';
-import send from 'send';
 
 function appendForwardSlash(path) {
   return path.endsWith("/") ? path : path + "/";
 }
-function prependForwardSlash$1(path) {
+function prependForwardSlash(path) {
   return path[0] === "/" ? path : "/" + path;
 }
 const MANY_LEADING_SLASHES = /^\/{2,}/;
@@ -75,84 +64,6 @@ function joinPaths(...paths) {
       return trimSlashes(path);
     }
   }).join("/");
-}
-function removeQueryString(path) {
-  const index = path.lastIndexOf("?");
-  return index > 0 ? path.substring(0, index) : path;
-}
-function isRemotePath(src) {
-  if (!src) return false;
-  const trimmed = src.trim();
-  if (!trimmed) return false;
-  let decoded = trimmed;
-  let previousDecoded = "";
-  let maxIterations = 10;
-  while (decoded !== previousDecoded && maxIterations > 0) {
-    previousDecoded = decoded;
-    try {
-      decoded = decodeURIComponent(decoded);
-    } catch {
-      break;
-    }
-    maxIterations--;
-  }
-  if (/^[a-zA-Z]:/.test(decoded)) {
-    return false;
-  }
-  if (decoded[0] === "/" && decoded[1] !== "/" && decoded[1] !== "\\") {
-    return false;
-  }
-  if (decoded[0] === "\\") {
-    return true;
-  }
-  if (decoded.startsWith("//")) {
-    return true;
-  }
-  try {
-    const url = new URL(decoded, "http://n");
-    if (url.username || url.password) {
-      return true;
-    }
-    if (decoded.includes("@") && !url.pathname.includes("@") && !url.search.includes("@")) {
-      return true;
-    }
-    if (url.origin !== "http://n") {
-      const protocol = url.protocol.toLowerCase();
-      if (protocol === "file:") {
-        return false;
-      }
-      return true;
-    }
-    if (URL.canParse(decoded)) {
-      return true;
-    }
-    return false;
-  } catch {
-    return true;
-  }
-}
-function isParentDirectory(parentPath, childPath) {
-  if (!parentPath || !childPath) {
-    return false;
-  }
-  if (parentPath.includes("://") || childPath.includes("://")) {
-    return false;
-  }
-  if (isRemotePath(parentPath) || isRemotePath(childPath)) {
-    return false;
-  }
-  if (parentPath.includes("..") || childPath.includes("..")) {
-    return false;
-  }
-  if (parentPath.includes("\0") || childPath.includes("\0")) {
-    return false;
-  }
-  const normalizedParent = appendForwardSlash(slash(parentPath).toLowerCase());
-  const normalizedChild = slash(childPath).toLowerCase();
-  if (normalizedParent === normalizedChild || normalizedParent === normalizedChild + "/") {
-    return false;
-  }
-  return normalizedChild.startsWith(normalizedParent);
 }
 function slash(path) {
   return path.replace(/\\/g, "/");
@@ -211,19 +122,6 @@ function matchPathname(url, pathname, allowWildcard = false) {
   }
   return false;
 }
-function isRemoteAllowed(src, {
-  domains,
-  remotePatterns
-}) {
-  if (!URL.canParse(src)) {
-    return false;
-  }
-  const url = new URL(src);
-  if (!["http:", "https:", "data:"].includes(url.protocol)) {
-    return false;
-  }
-  return domains.some((domain) => matchHostname(url, domain)) || remotePatterns.some((remotePattern) => matchPattern(url, remotePattern));
-}
 
 function shouldAppendForwardSlash(trailingSlash, buildFormat) {
   switch (trailingSlash) {
@@ -256,9 +154,6 @@ const REROUTABLE_STATUS_CODES = [404, 500];
 const clientAddressSymbol = /* @__PURE__ */ Symbol.for("astro.clientAddress");
 const originPathnameSymbol = /* @__PURE__ */ Symbol.for("astro.originPathname");
 const pipelineSymbol = /* @__PURE__ */ Symbol.for("astro.pipeline");
-const nodeRequestAbortControllerCleanupSymbol = /* @__PURE__ */ Symbol.for(
-  "astro.nodeRequestAbortControllerCleanup"
-);
 const responseSentSymbol$1 = /* @__PURE__ */ Symbol.for("astro.responseSent");
 
 const ClientAddressNotAvailable = {
@@ -354,96 +249,17 @@ const NoMatchingImport = {
   message: (componentName) => `Could not render \`${componentName}\`. No matching import has been found for \`${componentName}\`.`,
   hint: "Please make sure the component is properly imported."
 };
-const InvalidComponentArgs = {
-  name: "InvalidComponentArgs",
-  title: "Invalid component arguments.",
-  message: (name) => `Invalid arguments passed to${name ? ` <${name}>` : ""} component.`,
-  hint: "Astro components cannot be rendered directly via function call, such as `Component()` or `{items.map(Component)}`."
-};
 const PageNumberParamNotFound = {
   name: "PageNumberParamNotFound",
   title: "Page number param not found.",
   message: (paramName) => `[paginate()] page number param \`${paramName}\` not found in your filepath.`,
   hint: "Rename your file to `[page].astro` or `[...page].astro`."
 };
-const ImageMissingAlt = {
-  name: "ImageMissingAlt",
-  title: 'Image missing required "alt" property.',
-  message: 'Image missing "alt" property. "alt" text is required to describe important images on the page.',
-  hint: 'Use an empty string ("") for decorative images.'
-};
-const InvalidImageService = {
-  name: "InvalidImageService",
-  title: "Error while loading image service.",
-  message: "There was an error loading the configured image service. Please see the stack trace for more information."
-};
-const MissingImageDimension = {
-  name: "MissingImageDimension",
-  title: "Missing image dimensions",
-  message: (missingDimension, imageURL) => `Missing ${missingDimension === "both" ? "width and height attributes" : `${missingDimension} attribute`} for ${imageURL}. When using remote images, both dimensions are required in order to avoid CLS.`,
-  hint: "If your image is inside your `src` folder, you probably meant to import it instead. See [the Imports guide for more information](https://docs.astro.build/en/guides/imports/#other-assets). You can also use `inferSize={true}` for remote images to get the original dimensions."
-};
-const FailedToFetchRemoteImageDimensions = {
-  name: "FailedToFetchRemoteImageDimensions",
-  title: "Failed to retrieve remote image dimensions",
-  message: (imageURL) => `Failed to get the dimensions for ${imageURL}.`,
-  hint: "Verify your remote image URL is accurate, and that you are not using `inferSize` with a file located in your `public/` folder."
-};
-const RemoteImageNotAllowed = {
-  name: "RemoteImageNotAllowed",
-  title: "Remote image is not allowed",
-  message: (imageURL) => `Remote image ${imageURL} is not allowed by your image configuration.`,
-  hint: "Update `image.domains` or `image.remotePatterns`, or remove `inferSize` for this image."
-};
-const UnsupportedImageFormat = {
-  name: "UnsupportedImageFormat",
-  title: "Unsupported image format",
-  message: (format, imagePath, supportedFormats) => `Received unsupported format \`${format}\` from \`${imagePath}\`. Currently only ${supportedFormats.join(
-    ", "
-  )} are supported by our image services.`,
-  hint: "Using an `img` tag directly instead of the `Image` component might be what you're looking for."
-};
-const UnsupportedImageConversion = {
-  name: "UnsupportedImageConversion",
-  title: "Unsupported image conversion",
-  message: "Converting between vector (such as SVGs) and raster (such as PNGs and JPEGs) images is not currently supported."
-};
 const PrerenderDynamicEndpointPathCollide = {
   name: "PrerenderDynamicEndpointPathCollide",
   title: "Prerendered dynamic endpoint has path collision.",
   message: (pathname) => `Could not render \`${pathname}\` with an \`undefined\` param as the generated path will collide during prerendering. Prevent passing \`undefined\` as \`params\` for the endpoint's \`getStaticPaths()\` function, or add an additional extension to the endpoint's filename.`,
   hint: (filename) => `Rename \`${filename}\` to \`${filename.replace(/\.(?:js|ts)/, (m) => `.json` + m)}\``
-};
-const ExpectedImage = {
-  name: "ExpectedImage",
-  title: "Expected src to be an image.",
-  message: (src, typeofOptions, fullOptions) => `Expected \`src\` property for \`getImage\` or \`<Image />\` to be either an ESM imported image or a string with the path of a remote image. Received \`${src}\` (type: \`${typeofOptions}\`).
-
-Full serialized options received: \`${fullOptions}\`.`,
-  hint: "This error can often happen because of a wrong path. Make sure the path to your image is correct. If you're passing an async function, make sure to call and await it."
-};
-const ExpectedImageOptions = {
-  name: "ExpectedImageOptions",
-  title: "Expected image options.",
-  message: (options) => `Expected getImage() parameter to be an object. Received \`${options}\`.`
-};
-const ExpectedNotESMImage = {
-  name: "ExpectedNotESMImage",
-  title: "Expected image options, not an ESM-imported image.",
-  message: "An ESM-imported image cannot be passed directly to `getImage()`. Instead, pass an object with the image in the `src` property.",
-  hint: "Try changing `getImage(myImage)` to `getImage({ src: myImage })`"
-};
-const IncompatibleDescriptorOptions = {
-  name: "IncompatibleDescriptorOptions",
-  title: "Cannot set both `densities` and `widths`",
-  message: "Only one of `densities` or `widths` can be specified. In most cases, you'll probably want to use only `widths` if you require specific widths.",
-  hint: "Those attributes are used to construct a `srcset` attribute, which cannot have both `x` and `w` descriptors."
-};
-const NoImageMetadata = {
-  name: "NoImageMetadata",
-  title: "Could not process image metadata.",
-  message: (imagePath) => `Could not process image metadata${imagePath ? ` for \`${imagePath}\`` : ""}.`,
-  hint: "This is often caused by a corrupted or malformed image. Re-exporting the image from your image editor may fix this issue."
 };
 const ResponseSentError = {
   name: "ResponseSentError",
@@ -483,18 +299,6 @@ const AstroResponseHeadersReassigned = {
   message: "Individual headers can be added to and removed from `Astro.response.headers`, but it must not be replaced with another instance of `Headers` altogether.",
   hint: "Consider using `Astro.response.headers.add()`, and `Astro.response.headers.delete()`."
 };
-const LocalImageUsedWrongly = {
-  name: "LocalImageUsedWrongly",
-  title: "Local images must be imported.",
-  message: (imageFilePath) => `\`Image\`'s and \`getImage\`'s \`src\` parameter must be an imported image or an URL, it cannot be a string filepath. Received \`${imageFilePath}\`.`,
-  hint: "If you want to use an image from your `src` folder, you need to either import it or if the image is coming from a content collection, use the [image() schema helper](https://docs.astro.build/en/guides/images/#images-in-content-collections). See https://docs.astro.build/en/guides/images/#src-required for more information on the `src` property."
-};
-const MissingSharp = {
-  name: "MissingSharp",
-  title: "Could not find Sharp.",
-  message: "Could not find Sharp. Please install Sharp (`sharp`) manually into your project or migrate to another image service.",
-  hint: "See Sharp's installation instructions for more information: https://sharp.pixelplumbing.com/install. If you are not relying on `astro:assets` to optimize, transform, or process any images, you can configure a passthrough image service instead of installing Sharp. See https://docs.astro.build/en/reference/errors/missing-sharp for more information.\n\nSee https://docs.astro.build/en/guides/images/#default-image-service for more information on how to migrate to another image service."
-};
 const i18nNoLocaleFoundInPath = {
   name: "i18nNoLocaleFoundInPath",
   title: "The path doesn't contain any locale",
@@ -514,12 +318,6 @@ The static route '${to}' is rendered by the component
 '${component}', which is marked as prerendered. This is a forbidden operation because during the build, the component '${component}' is compiled to an
 HTML file, which can't be retrieved at runtime by Astro.`,
   hint: (component) => `Add \`export const prerender = false\` to the component '${component}', or use a Astro.redirect().`
-};
-const FontFamilyNotFound = {
-  name: "FontFamilyNotFound",
-  title: "Font family not found",
-  message: (family) => `No data was found for the \`"${family}"\` family passed to the \`<Font>\` component.`,
-  hint: "This is often caused by a typo. Check that the `<Font />` component is using a `cssVariable` specified in your config."
 };
 const ActionsReturnedInvalidDataError = {
   name: "ActionsReturnedInvalidDataError",
@@ -2699,9 +2497,6 @@ function renderAllHeadContent(result) {
   }
   return markHTMLString(content);
 }
-function renderHead() {
-  return createRenderInstruction({ type: "head" });
-}
 function maybeRenderHead() {
   return createRenderInstruction({ type: "maybe-head" });
 }
@@ -2893,9 +2688,6 @@ function mergeSlotInstructions(target, source) {
   return target;
 }
 function renderSlot(result, slotted, fallback) {
-  if (!slotted && fallback) {
-    return renderSlot(result, fallback);
-  }
   return {
     async render(destination) {
       await renderChild(destination, typeof slotted === "function" ? slotted(result) : slotted);
@@ -2921,7 +2713,7 @@ async function renderSlotToString(result, slotted, fallback) {
       }
     }
   };
-  const renderInstance = renderSlot(result, slotted, fallback);
+  const renderInstance = renderSlot(result, slotted);
   await renderInstance.render(temporaryDestination);
   return markHTMLString(new SlotString(content, instructions));
 }
@@ -4877,7 +4669,7 @@ class DisabledAstroCache {
   }
 }
 
-function createRequest$1({
+function createRequest({
   url,
   headers,
   method = "GET",
@@ -5133,7 +4925,7 @@ function copyRequest(newUrl, oldRequest, isPrerendered, logger, routePattern) {
   if (oldRequest.bodyUsed) {
     throw new AstroError(RewriteWithBodyUsed);
   }
-  return createRequest$1({
+  return createRequest({
     url: newUrl,
     method: oldRequest.method,
     body: oldRequest.body,
@@ -5192,7 +4984,7 @@ function normalizeRewritePathname(urlPathname, base, trailingSlash, buildFormat)
     }
   }
   if (!pathname.startsWith("/") && shouldAppendSlash && urlPathname.endsWith("/")) {
-    pathname = prependForwardSlash$1(pathname);
+    pathname = prependForwardSlash(pathname);
   }
   if (pathname === "/" && base !== "/" && !shouldAppendSlash) {
     pathname = "";
@@ -5779,6 +5571,12 @@ function deserializeRouteInfo(rawRouteInfo) {
     routeData: deserializeRouteData(rawRouteInfo.routeData)
   };
 }
+function queuePoolSize(config) {
+  return config?.poolSize ?? 1e3;
+}
+function queueRenderingEnabled(config) {
+  return config?.enabled ?? false;
+}
 
 class NodePool {
   textPool = [];
@@ -5973,6 +5771,10 @@ class NodePool {
       releasedDropped: 0
     };
   }
+}
+function newNodePool(config) {
+  const poolSize = queuePoolSize(config);
+  return new NodePool(poolSize);
 }
 
 class HTMLStringCache {
@@ -8054,10 +7856,10 @@ class Router {
 function normalizeBase(base) {
   if (!base) return "/";
   if (base === "/") return base;
-  return prependForwardSlash$1(base);
+  return prependForwardSlash(base);
 }
 function getRedirectForPathname(pathname) {
-  let value = prependForwardSlash$1(pathname);
+  let value = prependForwardSlash(pathname);
   if (value.startsWith("//")) {
     const collapsed = `/${value.replace(/^\/+/, "")}`;
     return { pathname: value, redirect: collapsed };
@@ -8155,7 +7957,7 @@ class BaseApp {
    */
   getPathnameFromRequest(request) {
     const url = new URL(request.url);
-    const pathname = prependForwardSlash$1(this.removeBase(url.pathname));
+    const pathname = prependForwardSlash(this.removeBase(url.pathname));
     try {
       return decodeURI(pathname);
     } catch (e) {
@@ -8176,7 +7978,7 @@ class BaseApp {
     if (this.manifest.assets.has(url.pathname)) return void 0;
     let pathname = this.computePathnameFromDomain(request);
     if (!pathname) {
-      pathname = prependForwardSlash$1(this.removeBase(url.pathname));
+      pathname = prependForwardSlash(this.removeBase(url.pathname));
     }
     const match = this.#router.match(decodeURI(pathname), { allowWithoutBase: true });
     if (match.type !== "match") return void 0;
@@ -8233,7 +8035,7 @@ class BaseApp {
             }
           }
           if (locale) {
-            pathname = prependForwardSlash$1(
+            pathname = prependForwardSlash(
               joinPaths(normalizeTheLocale(locale), this.removeBase(url.pathname))
             );
             if (url.pathname.endsWith("/")) {
@@ -8652,7 +8454,7 @@ function createAssetLink(href, base, assetsPrefix, queryParams) {
     const pf = getAssetsPrefix(fileExtension(pathname), assetsPrefix);
     url = joinPaths(pf, slash(pathname)) + suffix;
   } else if (base) {
-    url = prependForwardSlash$1(joinPaths(base, slash(pathname))) + suffix;
+    url = prependForwardSlash(joinPaths(base, slash(pathname))) + suffix;
   } else {
     url = href;
   }
@@ -8679,159 +8481,12 @@ function createStylesheetElementSet(stylesheets, base, assetsPrefix, queryParams
     stylesheets.map((s) => createStylesheetElement(s, base, assetsPrefix))
   );
 }
-function createModuleScriptElement(script, base, assetsPrefix, queryParams) {
-  if (script.type === "external") {
-    return createModuleScriptElementWithSrc(script.value, base, assetsPrefix);
-  } else {
-    return {
-      props: {
-        type: "module"
-      },
-      children: script.value
-    };
-  }
-}
-function createModuleScriptElementWithSrc(src, base, assetsPrefix, queryParams) {
-  return {
-    props: {
-      type: "module",
-      src: createAssetLink(src, base, assetsPrefix)
-    },
-    children: ""
-  };
-}
 
 function createConsoleLogger(level) {
   return new Logger({
     dest: consoleLogDestination,
     level: level ?? "info"
   });
-}
-
-class AppPipeline extends Pipeline {
-  getName() {
-    return "AppPipeline";
-  }
-  static create({ manifest, streaming }) {
-    const resolve = async function resolve2(specifier) {
-      if (!(specifier in manifest.entryModules)) {
-        throw new Error(`Unable to resolve [${specifier}]`);
-      }
-      const bundlePath = manifest.entryModules[specifier];
-      if (bundlePath.startsWith("data:") || bundlePath.length === 0) {
-        return bundlePath;
-      } else {
-        return createAssetLink(bundlePath, manifest.base, manifest.assetsPrefix);
-      }
-    };
-    const logger = createConsoleLogger(manifest.logLevel);
-    const pipeline = new AppPipeline(
-      logger,
-      manifest,
-      "production",
-      manifest.renderers,
-      resolve,
-      streaming,
-      void 0,
-      void 0,
-      void 0,
-      void 0,
-      void 0,
-      void 0,
-      void 0,
-      void 0
-    );
-    return pipeline;
-  }
-  async headElements(routeData) {
-    const { assetsPrefix, base } = this.manifest;
-    const routeInfo = this.manifest.routes.find(
-      (route) => route.routeData.route === routeData.route
-    );
-    const links = /* @__PURE__ */ new Set();
-    const scripts = /* @__PURE__ */ new Set();
-    const styles = createStylesheetElementSet(routeInfo?.styles ?? [], base, assetsPrefix);
-    for (const script of routeInfo?.scripts ?? []) {
-      if ("stage" in script) {
-        if (script.stage === "head-inline") {
-          scripts.add({
-            props: {},
-            children: script.children
-          });
-        }
-      } else {
-        scripts.add(createModuleScriptElement(script, base, assetsPrefix));
-      }
-    }
-    return { links, styles, scripts };
-  }
-  componentMetadata() {
-  }
-  async getComponentByRoute(routeData) {
-    const module = await this.getModuleForRoute(routeData);
-    return module.page();
-  }
-  async getModuleForRoute(route) {
-    for (const defaultRoute of this.defaultRoutes) {
-      if (route.component === defaultRoute.component) {
-        return {
-          page: () => Promise.resolve(defaultRoute.instance)
-        };
-      }
-    }
-    let routeToProcess = route;
-    if (routeIsRedirect(route)) {
-      if (route.redirectRoute) {
-        routeToProcess = route.redirectRoute;
-      } else {
-        return RedirectSinglePageBuiltModule;
-      }
-    } else if (routeIsFallback(route)) {
-      routeToProcess = getFallbackRoute(route, this.manifest.routes);
-    }
-    if (this.manifest.pageMap) {
-      const importComponentInstance = this.manifest.pageMap.get(routeToProcess.component);
-      if (!importComponentInstance) {
-        throw new Error(
-          `Unexpectedly unable to find a component instance for route ${route.route}`
-        );
-      }
-      return await importComponentInstance();
-    } else if (this.manifest.pageModule) {
-      return this.manifest.pageModule;
-    }
-    throw new Error(
-      "Astro couldn't find the correct page to render, probably because it wasn't correctly mapped for SSR usage. This is an internal error, please file an issue."
-    );
-  }
-  async tryRewrite(payload, request) {
-    const { newUrl, pathname, routeData } = findRouteToRewrite({
-      payload,
-      request,
-      routes: this.manifest?.routes.map((r) => r.routeData),
-      trailingSlash: this.manifest.trailingSlash,
-      buildFormat: this.manifest.buildFormat,
-      base: this.manifest.base,
-      outDir: this.manifest?.serverLike ? this.manifest.buildClientDir : this.manifest.outDir
-    });
-    const componentInstance = await this.getComponentByRoute(routeData);
-    return { newUrl, pathname, componentInstance, routeData };
-  }
-}
-
-class App extends BaseApp {
-  createPipeline(streaming) {
-    return AppPipeline.create({
-      manifest: this.manifest,
-      streaming
-    });
-  }
-  isDev() {
-    return false;
-  }
-  // Should we log something for our users?
-  logRequest(_options) {
-  }
 }
 
 const contexts = /* @__PURE__ */ new WeakMap();
@@ -9035,694 +8690,329 @@ var server_default = renderer;
 
 const renderers = [Object.assign({"name":"@astrojs/react","clientEntrypoint":"@astrojs/react/client.js","serverEntrypoint":"@astrojs/react/server.js"}, { ssr: server_default }),];
 
-const serializedData = [{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"type":"page","component":"_server-islands.astro","params":["name"],"segments":[[{"content":"_server-islands","dynamic":false,"spread":false}],[{"content":"name","dynamic":true,"spread":false}]],"pattern":"^\\/_server-islands\\/([^/]+?)\\/?$","prerender":false,"isIndex":false,"fallbackRoutes":[],"route":"/_server-islands/[name]","origin":"internal","distURL":[],"_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/_image","component":"node_modules/astro/dist/assets/endpoint/node.js","params":[],"pathname":"/_image","pattern":"^\\/_image\\/?$","segments":[[{"content":"_image","dynamic":false,"spread":false}]],"type":"endpoint","prerender":false,"fallbackRoutes":[],"distURL":[],"isIndex":false,"origin":"internal","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/alerts","isIndex":false,"type":"page","pattern":"^\\/alerts\\/?$","segments":[[{"content":"alerts","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/alerts.astro","pathname":"/alerts","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/api/sensors/history","isIndex":false,"type":"endpoint","pattern":"^\\/api\\/sensors\\/history\\/?$","segments":[[{"content":"api","dynamic":false,"spread":false}],[{"content":"sensors","dynamic":false,"spread":false}],[{"content":"history","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/api/sensors/history.ts","pathname":"/api/sensors/history","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/api/sensors","isIndex":false,"type":"endpoint","pattern":"^\\/api\\/sensors\\/?$","segments":[[{"content":"api","dynamic":false,"spread":false}],[{"content":"sensors","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/api/sensors.ts","pathname":"/api/sensors","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/api/vineyard/config","isIndex":false,"type":"endpoint","pattern":"^\\/api\\/vineyard\\/config\\/?$","segments":[[{"content":"api","dynamic":false,"spread":false}],[{"content":"vineyard","dynamic":false,"spread":false}],[{"content":"config","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/api/vineyard/config.ts","pathname":"/api/vineyard/config","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/edit","isIndex":false,"type":"page","pattern":"^\\/edit\\/?$","segments":[[{"content":"edit","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/edit.astro","pathname":"/edit","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/login","isIndex":false,"type":"page","pattern":"^\\/login\\/?$","segments":[[{"content":"login","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/login.astro","pathname":"/login","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/profile","isIndex":false,"type":"page","pattern":"^\\/profile\\/?$","segments":[[{"content":"profile","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/profile.astro","pathname":"/profile","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/statistics","isIndex":false,"type":"page","pattern":"^\\/statistics\\/?$","segments":[[{"content":"statistics","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/statistics.astro","pathname":"/statistics","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/","isIndex":true,"type":"page","pattern":"^\\/$","segments":[],"params":[],"component":"src/pages/index.astro","pathname":"/","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}}];
+const serializedData = [];
 				serializedData.map(deserializeRouteInfo);
 
-const _page0 = () => import('./node_C3ZqbT3T.mjs').then(n => n.n);
-const _page1 = () => import('./alerts_UjouC_GH.mjs');
-const _page2 = () => import('./history_DbI-vTY7.mjs');
-const _page3 = () => import('./sensors_CpefOPip.mjs');
-const _page4 = () => import('./config_uWpgLD0o.mjs');
-const _page5 = () => import('./edit_yJZM142v.mjs');
-const _page6 = () => import('./login_3mdXsF5B.mjs');
-const _page7 = () => import('./profile_TUs3d-b8.mjs');
-const _page8 = () => import('./statistics_9dYUINUL.mjs');
-const _page9 = () => import('./index_Cfp0OFyj.mjs');
 const pageMap = new Map([
-    ["node_modules/astro/dist/assets/endpoint/node.js", _page0],
-    ["src/pages/alerts.astro", _page1],
-    ["src/pages/api/sensors/history.ts", _page2],
-    ["src/pages/api/sensors.ts", _page3],
-    ["src/pages/api/vineyard/config.ts", _page4],
-    ["src/pages/edit.astro", _page5],
-    ["src/pages/login.astro", _page6],
-    ["src/pages/profile.astro", _page7],
-    ["src/pages/statistics.astro", _page8],
-    ["src/pages/index.astro", _page9]
+    
 ]);
 
-const _manifest = deserializeManifest(({"rootDir":"file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/","cacheDir":"file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/node_modules/.astro/","outDir":"file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/dist/","srcDir":"file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/","publicDir":"file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/public/","buildClientDir":"file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/dist/client/","buildServerDir":"file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/dist/server/","adapterName":"@astrojs/node","assetsDir":"_astro","routes":[{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"type":"page","component":"_server-islands.astro","params":["name"],"segments":[[{"content":"_server-islands","dynamic":false,"spread":false}],[{"content":"name","dynamic":true,"spread":false}]],"pattern":"^\\/_server-islands\\/([^/]+?)\\/?$","prerender":false,"isIndex":false,"fallbackRoutes":[],"route":"/_server-islands/[name]","origin":"internal","distURL":[],"_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/_image","component":"node_modules/astro/dist/assets/endpoint/node.js","params":[],"pathname":"/_image","pattern":"^\\/_image\\/?$","segments":[[{"content":"_image","dynamic":false,"spread":false}]],"type":"endpoint","prerender":false,"fallbackRoutes":[],"distURL":[],"isIndex":false,"origin":"internal","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[{"type":"external","src":"_astro/global.CP4EngG-.css"},{"type":"external","src":"_astro/MasterLayout.Dgihpmma.css"},{"type":"external","src":"_astro/AlertsView.Dgihpmma.css"}],"routeData":{"route":"/alerts","isIndex":false,"type":"page","pattern":"^\\/alerts\\/?$","segments":[[{"content":"alerts","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/alerts.astro","pathname":"/alerts","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/api/sensors/history","isIndex":false,"type":"endpoint","pattern":"^\\/api\\/sensors\\/history\\/?$","segments":[[{"content":"api","dynamic":false,"spread":false}],[{"content":"sensors","dynamic":false,"spread":false}],[{"content":"history","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/api/sensors/history.ts","pathname":"/api/sensors/history","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/api/sensors","isIndex":false,"type":"endpoint","pattern":"^\\/api\\/sensors\\/?$","segments":[[{"content":"api","dynamic":false,"spread":false}],[{"content":"sensors","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/api/sensors.ts","pathname":"/api/sensors","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[],"routeData":{"route":"/api/vineyard/config","isIndex":false,"type":"endpoint","pattern":"^\\/api\\/vineyard\\/config\\/?$","segments":[[{"content":"api","dynamic":false,"spread":false}],[{"content":"vineyard","dynamic":false,"spread":false}],[{"content":"config","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/api/vineyard/config.ts","pathname":"/api/vineyard/config","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[{"type":"external","src":"_astro/global.CP4EngG-.css"},{"type":"external","src":"_astro/MasterLayout.Dgihpmma.css"},{"type":"external","src":"_astro/AlertsView.Dgihpmma.css"}],"routeData":{"route":"/edit","isIndex":false,"type":"page","pattern":"^\\/edit\\/?$","segments":[[{"content":"edit","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/edit.astro","pathname":"/edit","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[{"type":"external","src":"_astro/global.CP4EngG-.css"}],"routeData":{"route":"/login","isIndex":false,"type":"page","pattern":"^\\/login\\/?$","segments":[[{"content":"login","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/login.astro","pathname":"/login","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[{"type":"external","src":"_astro/global.CP4EngG-.css"},{"type":"external","src":"_astro/MasterLayout.Dgihpmma.css"}],"routeData":{"route":"/profile","isIndex":false,"type":"page","pattern":"^\\/profile\\/?$","segments":[[{"content":"profile","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/profile.astro","pathname":"/profile","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[{"type":"external","src":"_astro/global.CP4EngG-.css"},{"type":"external","src":"_astro/MasterLayout.Dgihpmma.css"}],"routeData":{"route":"/statistics","isIndex":false,"type":"page","pattern":"^\\/statistics\\/?$","segments":[[{"content":"statistics","dynamic":false,"spread":false}]],"params":[],"component":"src/pages/statistics.astro","pathname":"/statistics","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}},{"file":"","links":[],"scripts":[],"styles":[{"type":"external","src":"_astro/global.CP4EngG-.css"},{"type":"external","src":"_astro/MasterLayout.Dgihpmma.css"}],"routeData":{"route":"/","isIndex":true,"type":"page","pattern":"^\\/$","segments":[],"params":[],"component":"src/pages/index.astro","pathname":"/","prerender":false,"fallbackRoutes":[],"distURL":[],"origin":"project","_meta":{"trailingSlash":"ignore"}}}],"serverLike":true,"middlewareMode":"classic","base":"/","trailingSlash":"ignore","compressHTML":true,"experimentalQueuedRendering":{"enabled":false,"poolSize":0,"contentCache":false},"componentMetadata":[["/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/pages/login.astro",{"propagation":"none","containsHead":true}],["/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/pages/alerts.astro",{"propagation":"none","containsHead":true}],["/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/pages/edit.astro",{"propagation":"none","containsHead":true}],["/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/pages/index.astro",{"propagation":"none","containsHead":true}],["/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/pages/profile.astro",{"propagation":"none","containsHead":true}],["/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/pages/statistics.astro",{"propagation":"none","containsHead":true}]],"renderers":[],"clientDirectives":[["idle","(()=>{var l=(n,t)=>{let i=async()=>{await(await n())()},e=typeof t.value==\"object\"?t.value:void 0,s={timeout:e==null?void 0:e.timeout};\"requestIdleCallback\"in window?window.requestIdleCallback(i,s):setTimeout(i,s.timeout||200)};(self.Astro||(self.Astro={})).idle=l;window.dispatchEvent(new Event(\"astro:idle\"));})();"],["load","(()=>{var e=async t=>{await(await t())()};(self.Astro||(self.Astro={})).load=e;window.dispatchEvent(new Event(\"astro:load\"));})();"],["media","(()=>{var n=(a,t)=>{let i=async()=>{await(await a())()};if(t.value){let e=matchMedia(t.value);e.matches?i():e.addEventListener(\"change\",i,{once:!0})}};(self.Astro||(self.Astro={})).media=n;window.dispatchEvent(new Event(\"astro:media\"));})();"],["only","(()=>{var e=async t=>{await(await t())()};(self.Astro||(self.Astro={})).only=e;window.dispatchEvent(new Event(\"astro:only\"));})();"],["visible","(()=>{var a=(s,i,o)=>{let r=async()=>{await(await s())()},t=typeof i.value==\"object\"?i.value:void 0,c={rootMargin:t==null?void 0:t.rootMargin},n=new IntersectionObserver(e=>{for(let l of e)if(l.isIntersecting){n.disconnect(),r();break}},c);for(let e of o.children)n.observe(e)};(self.Astro||(self.Astro={})).visible=a;window.dispatchEvent(new Event(\"astro:visible\"));})();"]],"entryModules":{"astro/entrypoints/prerender":"prerender-entry.CEs8PxHq.mjs","\u0000virtual:astro:actions/noop-entrypoint":"chunks/noop-entrypoint_BOlrdqWF.mjs","\u0000noop-middleware":"virtual_astro_middleware.mjs","\u0000virtual:astro:session-driver":"chunks/_virtual_astro_session-driver_Bk3Q189E.mjs","\u0000virtual:astro:server-island-manifest":"chunks/_virtual_astro_server-island-manifest_CQQ1F5PF.mjs","@astrojs/node/server.js":"entry.mjs","\u0000virtual:astro:page:src/pages/alerts@_@astro":"chunks/alerts_UjouC_GH.mjs","\u0000virtual:astro:page:src/pages/api/sensors/history@_@ts":"chunks/history_DbI-vTY7.mjs","\u0000virtual:astro:page:src/pages/api/sensors@_@ts":"chunks/sensors_CpefOPip.mjs","\u0000virtual:astro:page:src/pages/api/vineyard/config@_@ts":"chunks/config_uWpgLD0o.mjs","\u0000virtual:astro:page:src/pages/edit@_@astro":"chunks/edit_yJZM142v.mjs","\u0000virtual:astro:page:src/pages/login@_@astro":"chunks/login_3mdXsF5B.mjs","\u0000virtual:astro:page:src/pages/profile@_@astro":"chunks/profile_TUs3d-b8.mjs","\u0000virtual:astro:page:src/pages/statistics@_@astro":"chunks/statistics_9dYUINUL.mjs","\u0000virtual:astro:page:src/pages/index@_@astro":"chunks/index_Cfp0OFyj.mjs","/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/node_modules/astro/dist/assets/services/sharp.js":"chunks/sharp_DHPEFfk9.mjs","/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/components/common/Sidebar":"_astro/Sidebar.BPsw3xWR.js","/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/components/common/Header":"_astro/Header.BkEP8oCH.js","/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/components/alerts/AlertsView":"_astro/AlertsView.OogyYere.js","/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/components/edit/EditForm":"_astro/EditForm.BqeaDwaS.js","/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/components/stats/DashboardStats":"_astro/DashboardStats.DUXKE7_F.js","/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/src/components/map/DashboardMap":"_astro/DashboardMap.DZeC82E0.js","@astrojs/react/client.js":"_astro/client.DmfWyF_v.js","astro:scripts/before-hydration.js":""},"inlinedScripts":[],"assets":["/_astro/AlertsView.Dgihpmma.css","/_astro/AlertsView.OogyYere.js","/_astro/DashboardMap.DZeC82E0.js","/_astro/DashboardStats.DUXKE7_F.js","/_astro/EditForm.BqeaDwaS.js","/_astro/Header.BkEP8oCH.js","/_astro/Sidebar.BPsw3xWR.js","/_astro/client.DmfWyF_v.js","/_astro/createLucideIcon.2wnRh9v1.js","/_astro/index.C2cq821n.js","/_astro/index.DU1gPWzV.js","/_astro/jsx-runtime.hJLe0pNH.js","/_astro/leaflet-src.BT9gw1gc.js","/_astro/search.UmGj6cI8.js","/images/marco-rossi.png","/_astro/MasterLayout.Dgihpmma.css","/_astro/global.CP4EngG-.css"],"buildFormat":"directory","checkOrigin":true,"actionBodySizeLimit":1048576,"serverIslandBodySizeLimit":1048576,"allowedDomains":[],"key":"9lI2zJZWDiEqG6n4AULkqNBuDr4F5mIN2hI21WE9hBM=","sessionConfig":{"driver":"unstorage/drivers/fs-lite","options":{"base":"/Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/node_modules/.astro/sessions"}},"image":{},"devToolbar":{"enabled":false,"debugInfoOutput":""},"logLevel":"info","shouldInjectCspMetaTags":false}));
+const _manifest = deserializeManifest(('@@ASTRO_MANIFEST_REPLACE@@'));
 					const manifestRoutes = _manifest.routes;
 					
 					const manifest = Object.assign(_manifest, {
 					  renderers,
-					  actions: () => import('./noop-entrypoint_BOlrdqWF.mjs'),
-					  middleware: () => import('../virtual_astro_middleware.mjs'),
-					  sessionDriver: () => import('./_virtual_astro_session-driver_Bk3Q189E.mjs'),
+					  actions: () => import('./chunks/noop-entrypoint_BOlrdqWF.mjs'),
+					  middleware: () => import('./chunks/_noop-middleware_CxX_NzRo.mjs'),
+					  sessionDriver: () => import('./chunks/_virtual_astro_session-driver_Bk3Q189E.mjs'),
 					  
-					  serverIslandMappings: () => import('./_virtual_astro_server-island-manifest_CQQ1F5PF.mjs'),
+					  serverIslandMappings: () => import('./chunks/_virtual_astro_server-island-manifest_CQQ1F5PF.mjs'),
 					  routes: manifestRoutes,
 					  pageMap,
 					});
 
-const createApp$1 = ({ streaming } = {}) => {
-  return new App(manifest, streaming);
-};
+const VIRTUAL_PAGE_MODULE_ID = "virtual:astro:page:";
+const VIRTUAL_PAGE_RESOLVED_MODULE_ID = "\0" + VIRTUAL_PAGE_MODULE_ID;
 
-const createApp = createApp$1;
-
-const mode = "standalone";
-const client = "file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/dist/client/";
-const server = "file:///Users/lorenzodimaio/Documents/Iot_project/vineyard-dashboard/dist/server/";
-const host = false;
-const port = 4321;
-const staticHeaders = false;
-const bodySizeLimit = 1073741824;
-const experimentalDisableStreaming = false;
-
-const options = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  bodySizeLimit,
-  client,
-  experimentalDisableStreaming,
-  host,
-  mode,
-  port,
-  server,
-  staticHeaders
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const createOutgoingHttpHeaders = (headers) => {
-  if (!headers) {
-    return void 0;
-  }
-  const nodeHeaders = Object.fromEntries(headers.entries());
-  if (Object.keys(nodeHeaders).length === 0) {
-    return void 0;
-  }
-  if (headers.has("set-cookie")) {
-    const cookieHeaders = headers.getSetCookie();
-    if (cookieHeaders.length > 1) {
-      nodeHeaders["set-cookie"] = cookieHeaders;
-    }
-  }
-  return nodeHeaders;
-};
-
-function getFirstForwardedValue(multiValueHeader) {
-  return multiValueHeader?.toString().split(",").map((e) => e.trim())[0];
+const ASTRO_PAGE_EXTENSION_POST_PATTERN = "@_@";
+function getVirtualModulePageName(virtualModulePrefix, path) {
+  const extension = fileExtension(path);
+  return virtualModulePrefix + (extension.startsWith(".") ? path.slice(0, -extension.length) + extension.replace(".", ASTRO_PAGE_EXTENSION_POST_PATTERN) : path);
 }
-function sanitizeHost(hostname) {
-  if (!hostname) return void 0;
-  if (/[/\\]/.test(hostname)) return void 0;
-  return hostname;
+
+const SCRIPT_ID_PREFIX = `astro:scripts/`;
+const BEFORE_HYDRATION_SCRIPT_ID = `${SCRIPT_ID_PREFIX}${"before-hydration"}.js`;
+const PAGE_SCRIPT_ID = `${SCRIPT_ID_PREFIX}${"page"}.js`;
+
+const ASTRO_PAGE_KEY_SEPARATOR = "&";
+function makePageDataKey(route, componentPath) {
+  return route + ASTRO_PAGE_KEY_SEPARATOR + componentPath;
 }
-function parseHost(host) {
-  const parts = host.split(":");
-  return {
-    hostname: parts[0],
-    port: parts[1]
-  };
-}
-function matchesAllowedDomains(hostname, protocol, port, allowedDomains) {
-  const hostWithPort = port ? `${hostname}:${port}` : hostname;
-  const urlString = `${protocol}://${hostWithPort}`;
-  if (!URL.canParse(urlString)) {
-    return false;
-  }
-  const testUrl = new URL(urlString);
-  return allowedDomains.some((pattern) => matchPattern(testUrl, pattern));
-}
-function validateHost(host, protocol, allowedDomains) {
-  if (!host || host.length === 0) return void 0;
-  if (!allowedDomains || allowedDomains.length === 0) return void 0;
-  const sanitized = sanitizeHost(host);
-  if (!sanitized) return void 0;
-  const { hostname, port } = parseHost(sanitized);
-  if (matchesAllowedDomains(hostname, protocol, port, allowedDomains)) {
-    return sanitized;
+
+function getPageData(internals, route, component) {
+  let pageData = internals.pagesByKeys.get(makePageDataKey(route, component));
+  if (pageData) {
+    return pageData;
   }
   return void 0;
 }
-function validateForwardedHeaders(forwardedProtocol, forwardedHost, forwardedPort, allowedDomains) {
-  const result = {};
-  if (forwardedProtocol) {
-    if (allowedDomains && allowedDomains.length > 0) {
-      const hasProtocolPatterns = allowedDomains.some((pattern) => pattern.protocol !== void 0);
-      if (hasProtocolPatterns) {
-        try {
-          const testUrl = new URL(`${forwardedProtocol}://example.com`);
-          const isAllowed = allowedDomains.some(
-            (pattern) => matchPattern(testUrl, { protocol: pattern.protocol })
-          );
-          if (isAllowed) {
-            result.protocol = forwardedProtocol;
-          }
-        } catch {
-        }
-      } else if (/^https?$/.test(forwardedProtocol)) {
-        result.protocol = forwardedProtocol;
-      }
+function cssOrder(a, b) {
+  let depthA = a.depth, depthB = b.depth, orderA = a.order, orderB = b.order;
+  if (orderA === -1 && orderB >= 0) {
+    return 1;
+  } else if (orderB === -1 && orderA >= 0) {
+    return -1;
+  } else if (orderA > orderB) {
+    return 1;
+  } else if (orderA < orderB) {
+    return -1;
+  } else {
+    if (depthA === -1) {
+      return -1;
+    } else if (depthB === -1) {
+      return 1;
+    } else {
+      return depthA > depthB ? -1 : 1;
     }
   }
-  if (forwardedPort && allowedDomains && allowedDomains.length > 0) {
-    const hasPortPatterns = allowedDomains.some((pattern) => pattern.port !== void 0);
-    if (hasPortPatterns) {
-      const isAllowed = allowedDomains.some((pattern) => pattern.port === forwardedPort);
-      if (isAllowed) {
-        result.port = forwardedPort;
-      }
-    }
+}
+function mergeInlineCss(acc, current) {
+  const lastAdded = acc.at(acc.length - 1);
+  const lastWasInline = lastAdded?.type === "inline";
+  const currentIsInline = current?.type === "inline";
+  if (lastWasInline && currentIsInline) {
+    const merged = { type: "inline", content: lastAdded.content + current.content };
+    acc[acc.length - 1] = merged;
+    return acc;
   }
-  if (forwardedHost && forwardedHost.length > 0 && allowedDomains && allowedDomains.length > 0) {
-    const protoForValidation = result.protocol || "https";
-    const sanitized = sanitizeHost(forwardedHost);
-    if (sanitized) {
-      const { hostname, port: portFromHost } = parseHost(sanitized);
-      const portForValidation = result.port || portFromHost;
-      if (matchesAllowedDomains(hostname, protoForValidation, portForValidation, allowedDomains)) {
-        result.host = sanitized;
-      }
-    }
-  }
-  return result;
+  acc.push(current);
+  return acc;
 }
 
-function createRequest(req, {
-  skipBody = false,
-  allowedDomains = [],
-  bodySizeLimit,
-  port: serverPort
-} = {}) {
-  const controller = new AbortController();
-  const isEncrypted = "encrypted" in req.socket && req.socket.encrypted;
-  const providedProtocol = isEncrypted ? "https" : "http";
-  const untrustedHostname = req.headers.host ?? req.headers[":authority"];
-  const validated = validateForwardedHeaders(
-    getFirstForwardedValue(req.headers["x-forwarded-proto"]),
-    getFirstForwardedValue(req.headers["x-forwarded-host"]),
-    getFirstForwardedValue(req.headers["x-forwarded-port"]),
-    allowedDomains
-  );
-  const protocol = validated.protocol ?? providedProtocol;
-  const validatedHostname = validateHost(
-    typeof untrustedHostname === "string" ? untrustedHostname : void 0,
-    protocol,
-    allowedDomains
-  );
-  const hostname = validated.host ?? validatedHostname ?? "localhost";
-  const port = validated.port ?? (!validated.host && !validatedHostname && serverPort ? String(serverPort) : void 0);
-  let url;
-  try {
-    const hostnamePort = getHostnamePort(hostname, port);
-    url = new URL(`${protocol}://${hostnamePort}${req.url}`);
-  } catch {
-    const hostnamePort = getHostnamePort(hostname, port);
-    url = new URL(`${protocol}://${hostnamePort}`);
+class BuildPipeline extends Pipeline {
+  internals;
+  options;
+  manifest;
+  defaultRoutes;
+  getName() {
+    return "BuildPipeline";
   }
-  const options = {
-    method: req.method || "GET",
-    headers: makeRequestHeaders(req),
-    signal: controller.signal
-  };
-  const bodyAllowed = options.method !== "HEAD" && options.method !== "GET" && skipBody === false;
-  if (bodyAllowed) {
-    Object.assign(options, makeRequestBody(req, bodySizeLimit));
-  }
-  const request = new Request(url, options);
-  const socket = getRequestSocket(req);
-  if (socket && typeof socket.on === "function") {
-    const existingCleanup = getAbortControllerCleanup(req);
-    if (existingCleanup) {
-      existingCleanup();
+  /**
+   * This cache is needed to map a single `RouteData` to its file path.
+   * @private
+   */
+  #routesByFilePath = /* @__PURE__ */ new WeakMap();
+  getSettings() {
+    if (!this.options) {
+      throw new Error("No options defined");
     }
-    let cleanedUp = false;
-    const removeSocketListener = () => {
-      if (typeof socket.off === "function") {
-        socket.off("close", onSocketClose);
-      } else if (typeof socket.removeListener === "function") {
-        socket.removeListener("close", onSocketClose);
+    return this.options.settings;
+  }
+  getOptions() {
+    if (!this.options) {
+      throw new Error("No options defined");
+    }
+    return this.options;
+  }
+  getInternals() {
+    if (!this.internals) {
+      throw new Error("No internals defined");
+    }
+    return this.internals;
+  }
+  constructor(manifest, defaultRoutes = createDefaultRoutes(manifest)) {
+    const resolveCache = /* @__PURE__ */ new Map();
+    async function resolve(specifier) {
+      if (resolveCache.has(specifier)) {
+        return resolveCache.get(specifier);
       }
-    };
-    const cleanup = () => {
-      if (cleanedUp) return;
-      cleanedUp = true;
-      removeSocketListener();
-      controller.signal.removeEventListener("abort", cleanup);
-      Reflect.deleteProperty(req, nodeRequestAbortControllerCleanupSymbol);
-    };
-    const onSocketClose = () => {
-      cleanup();
-      if (!controller.signal.aborted) {
-        controller.abort();
+      const hashedFilePath = manifest.entryModules[specifier];
+      if (typeof hashedFilePath !== "string" || hashedFilePath === "") {
+        if (specifier === BEFORE_HYDRATION_SCRIPT_ID) {
+          resolveCache.set(specifier, "");
+          return "";
+        }
+        throw new Error(`Cannot find the built path for ${specifier}`);
       }
-    };
-    socket.on("close", onSocketClose);
-    controller.signal.addEventListener("abort", cleanup, { once: true });
-    Reflect.set(req, nodeRequestAbortControllerCleanupSymbol, cleanup);
-    if (socket.destroyed) {
-      onSocketClose();
+      const assetLink = createAssetLink(hashedFilePath, manifest.base, manifest.assetsPrefix);
+      resolveCache.set(specifier, assetLink);
+      return assetLink;
+    }
+    const logger = createConsoleLogger(manifest.logLevel);
+    super(logger, manifest, "production", manifest.renderers, resolve, manifest.serverLike);
+    this.manifest = manifest;
+    this.defaultRoutes = defaultRoutes;
+    if (queueRenderingEnabled(this.manifest.experimentalQueuedRendering)) {
+      this.nodePool = newNodePool(this.manifest.experimentalQueuedRendering);
+      if (this.manifest.experimentalQueuedRendering.contentCache) {
+        this.htmlStringCache = new HTMLStringCache(1e3);
+      }
     }
   }
-  const hostValidated = validated.host !== void 0 || validatedHostname !== void 0;
-  const forwardedClientIp = hostValidated ? getFirstForwardedValue(req.headers["x-forwarded-for"]) : void 0;
-  const clientIp = forwardedClientIp || req.socket?.remoteAddress;
-  if (clientIp) {
-    Reflect.set(request, clientAddressSymbol, clientIp);
+  getRoutes() {
+    return this.getOptions().routesList.routes;
   }
-  return request;
-}
-async function writeResponse(source, destination) {
-  const { status, headers, body, statusText } = source;
-  if (!(destination instanceof Http2ServerResponse)) {
-    destination.statusMessage = statusText;
+  static create({ manifest }) {
+    return new BuildPipeline(manifest);
   }
-  destination.writeHead(status, createOutgoingHttpHeaders(headers));
-  const cleanupAbortFromDestination = getAbortControllerCleanup(
-    destination.req ?? void 0
-  );
-  if (cleanupAbortFromDestination) {
-    const runCleanup = () => {
-      cleanupAbortFromDestination();
-      if (typeof destination.off === "function") {
-        destination.off("finish", runCleanup);
-        destination.off("close", runCleanup);
+  setInternals(internals) {
+    this.internals = internals;
+  }
+  setOptions(options) {
+    this.options = options;
+  }
+  headElements(routeData) {
+    const {
+      manifest: { assetsPrefix, base }
+    } = this;
+    const settings = this.getSettings();
+    const internals = this.getInternals();
+    const links = /* @__PURE__ */ new Set();
+    const pageBuildData = getPageData(internals, routeData.route, routeData.component);
+    const scripts = /* @__PURE__ */ new Set();
+    const sortedCssAssets = pageBuildData?.styles.sort(cssOrder).map(({ sheet }) => sheet).reduce(mergeInlineCss, []);
+    const styles = createStylesheetElementSet(sortedCssAssets ?? [], base, assetsPrefix);
+    if (settings.scripts.some((script) => script.stage === "page")) {
+      const hashedFilePath = internals.entrySpecifierToBundleMap.get(PAGE_SCRIPT_ID);
+      if (typeof hashedFilePath !== "string") {
+        throw new Error(`Cannot find the built path for ${PAGE_SCRIPT_ID}`);
+      }
+      const src = createAssetLink(hashedFilePath, base, assetsPrefix);
+      scripts.add({
+        props: { type: "module", src },
+        children: ""
+      });
+    }
+    for (const script of settings.scripts) {
+      if (script.stage === "head-inline") {
+        scripts.add({
+          props: {},
+          children: script.content
+        });
+      }
+    }
+    return { scripts, styles, links };
+  }
+  componentMetadata() {
+  }
+  /**
+   * It collects the routes to generate during the build.
+   * It returns a map of page information and their relative entry point as a string.
+   */
+  retrieveRoutesToGenerate() {
+    const pages = /* @__PURE__ */ new Set();
+    const defaultRouteComponents = new Set(this.defaultRoutes.map((route) => route.component));
+    for (const { routeData } of this.manifest.routes) {
+      if (routeIsRedirect(routeData)) {
+        pages.add(routeData);
+        continue;
+      }
+      if (routeIsFallback(routeData) && i18nHasFallback(this.manifest)) {
+        pages.add(routeData);
+        continue;
+      }
+      if (defaultRouteComponents.has(routeData.component)) {
+        continue;
+      }
+      pages.add(routeData);
+      const moduleSpecifier = getVirtualModulePageName(
+        VIRTUAL_PAGE_RESOLVED_MODULE_ID,
+        routeData.component
+      );
+      const filePath = this.internals?.entrySpecifierToBundleMap.get(moduleSpecifier);
+      if (filePath) {
+        this.#routesByFilePath.set(routeData, filePath);
+      }
+    }
+    return pages;
+  }
+  async getComponentByRoute(routeData) {
+    const module = await this.getModuleForRoute(routeData);
+    return module.page();
+  }
+  async getModuleForRoute(route) {
+    for (const defaultRoute of this.defaultRoutes) {
+      if (route.component === defaultRoute.component) {
+        return {
+          page: () => Promise.resolve(defaultRoute.instance)
+        };
+      }
+    }
+    let routeToProcess = route;
+    if (routeIsRedirect(route)) {
+      if (route.redirectRoute) {
+        routeToProcess = route.redirectRoute;
       } else {
-        destination.removeListener?.("finish", runCleanup);
-        destination.removeListener?.("close", runCleanup);
+        return RedirectSinglePageBuiltModule;
       }
-    };
-    destination.on("finish", runCleanup);
-    destination.on("close", runCleanup);
-  }
-  if (!body) return destination.end();
-  try {
-    const reader = body.getReader();
-    destination.on("close", () => {
-      reader.cancel().catch((err) => {
-        console.error(
-          `There was an uncaught error in the middle of the stream while rendering ${destination.req.url}.`,
-          err
+    } else if (routeIsFallback(route)) {
+      routeToProcess = getFallbackRoute(route, this.manifest.routes);
+    }
+    if (this.manifest.pageMap) {
+      const importComponentInstance = this.manifest.pageMap.get(routeToProcess.component);
+      if (!importComponentInstance) {
+        throw new Error(
+          `Unexpectedly unable to find a component instance for route ${route.route}`
         );
-      });
+      }
+      return await importComponentInstance();
+    } else if (this.manifest.pageModule) {
+      return this.manifest.pageModule;
+    }
+    throw new Error(
+      "Astro couldn't find the correct page to render, probably because it wasn't correctly mapped for SSR usage. This is an internal error, please file an issue."
+    );
+  }
+  async tryRewrite(payload, request) {
+    const { routeData, pathname, newUrl } = findRouteToRewrite({
+      payload,
+      request,
+      routes: this.manifest.routes.map((routeInfo) => routeInfo.routeData),
+      trailingSlash: this.manifest.trailingSlash,
+      buildFormat: this.manifest.buildFormat,
+      base: this.manifest.base,
+      outDir: this.manifest.serverLike ? this.manifest.buildClientDir : this.manifest.outDir
     });
-    let result = await reader.read();
-    while (!result.done) {
-      destination.write(result.value);
-      result = await reader.read();
-    }
-    destination.end();
-  } catch (err) {
-    destination.write("Internal server error", () => {
-      err instanceof Error ? destination.destroy(err) : destination.destroy();
+    const componentInstance = await this.getComponentByRoute(routeData);
+    return { routeData, componentInstance, newUrl, pathname };
+  }
+}
+function i18nHasFallback(manifest) {
+  if (manifest.i18n && manifest.i18n.fallback) {
+    return Object.keys(manifest.i18n.fallback).length > 0;
+  }
+  return false;
+}
+
+class BuildApp extends BaseApp {
+  createPipeline(_streaming, manifest, ..._args) {
+    return BuildPipeline.create({
+      manifest
     });
   }
-}
-function getHostnamePort(hostname, port) {
-  const portInHostname = typeof hostname === "string" && /:\d+$/.test(hostname);
-  const hostnamePort = portInHostname ? hostname : `${hostname}${port ? `:${port}` : ""}`;
-  return hostnamePort;
-}
-function makeRequestHeaders(req) {
-  const headers = new Headers();
-  for (const [name, value] of Object.entries(req.headers)) {
-    if (value === void 0) {
-      continue;
-    }
-    if (Array.isArray(value)) {
-      for (const item of value) {
-        headers.append(name, item);
+  async createRenderContext(payload) {
+    return await super.createRenderContext({
+      ...payload
+    });
+  }
+  isDev() {
+    return true;
+  }
+  setInternals(internals) {
+    this.pipeline.setInternals(internals);
+  }
+  setOptions(options) {
+    this.pipeline.setOptions(options);
+    this.logger = options.logger;
+  }
+  getOptions() {
+    return this.pipeline.getOptions();
+  }
+  getSettings() {
+    return this.pipeline.getSettings();
+  }
+  async renderError(request, options) {
+    if (options.status === 500) {
+      if (options.response) {
+        return options.response;
       }
+      throw options.error;
     } else {
-      headers.append(name, value);
+      return super.renderError(request, {
+        ...options,
+        prerenderedErrorPageFetch: void 0
+      });
     }
   }
-  return headers;
-}
-function makeRequestBody(req, bodySizeLimit) {
-  if (req.body !== void 0) {
-    if (typeof req.body === "string" && req.body.length > 0) {
-      return { body: Buffer.from(req.body) };
-    }
-    if (typeof req.body === "object" && req.body !== null && Object.keys(req.body).length > 0) {
-      return { body: Buffer.from(JSON.stringify(req.body)) };
-    }
-    if (typeof req.body === "object" && req.body !== null && typeof req.body[Symbol.asyncIterator] !== "undefined") {
-      return asyncIterableToBodyProps(req.body, bodySizeLimit);
+  getQueueStats() {
+    if (this.pipeline.nodePool) {
+      return this.pipeline.nodePool.getStats();
     }
   }
-  return asyncIterableToBodyProps(req, bodySizeLimit);
-}
-function asyncIterableToBodyProps(iterable, bodySizeLimit) {
-  const source = bodySizeLimit != null ? limitAsyncIterable(iterable, bodySizeLimit) : iterable;
-  return {
-    // Node uses undici for the Request implementation. Undici accepts
-    // a non-standard async iterable for the body.
-    // @ts-expect-error
-    body: source,
-    // The duplex property is required when using a ReadableStream or async
-    // iterable for the body. The type definitions do not include the duplex
-    // property because they are not up-to-date.
-    duplex: "half"
-  };
-}
-async function* limitAsyncIterable(iterable, limit) {
-  let received = 0;
-  for await (const chunk of iterable) {
-    const byteLength = chunk instanceof Uint8Array ? chunk.byteLength : typeof chunk === "string" ? Buffer.byteLength(chunk) : 0;
-    received += byteLength;
-    if (received > limit) {
-      throw new Error(`Body size limit exceeded: received more than ${limit} bytes`);
-    }
-    yield chunk;
+  logRequest(_options) {
   }
-}
-function getAbortControllerCleanup(req) {
-  if (!req) return void 0;
-  const cleanup = Reflect.get(req, nodeRequestAbortControllerCleanupSymbol);
-  return typeof cleanup === "function" ? cleanup : void 0;
-}
-function getRequestSocket(req) {
-  if (req.socket && typeof req.socket.on === "function") {
-    return req.socket;
-  }
-  const http2Socket = req.stream?.session?.socket;
-  if (http2Socket && typeof http2Socket.on === "function") {
-    return http2Socket;
-  }
-  return void 0;
 }
 
-function resolveClientDir(options) {
-  const clientURLRaw = new URL(options.client);
-  const serverURLRaw = new URL(options.server);
-  const rel = path.relative(url.fileURLToPath(serverURLRaw), url.fileURLToPath(clientURLRaw));
-  const serverFolder = path.basename(options.server);
-  let serverEntryFolderURL = path.dirname(import.meta.url);
-  let previous = "";
-  while (!serverEntryFolderURL.endsWith(serverFolder)) {
-    if (serverEntryFolderURL === previous) {
-      throw new Error(
-        `[@astrojs/node] Could not find the server directory "${serverFolder}" by walking up from "${import.meta.url}". This can happen when the server entry point is bundled into a single file (e.g. with esbuild) so that import.meta.url no longer contains the original "${serverFolder}" path segment. When bundling the server entry, make sure the output path contains a "${serverFolder}" directory segment, or avoid bundling the server entry entirely.`
-      );
-    }
-    previous = serverEntryFolderURL;
-    serverEntryFolderURL = path.dirname(serverEntryFolderURL);
-  }
-  const serverEntryURL = serverEntryFolderURL + "/entry.mjs";
-  const clientURL = new URL(appendForwardSlash(rel), serverEntryURL);
-  return url.fileURLToPath(clientURL);
-}
+const app = new BuildApp(manifest);
 
-async function readErrorPageFromDisk(client, status) {
-  const filePaths = [`${status}.html`, `${status}/index.html`];
-  for (const filePath of filePaths) {
-    const fullPath = path.join(client, filePath);
-    let stream;
-    try {
-      stream = createReadStream(fullPath);
-      await new Promise((resolve, reject) => {
-        stream.once("open", () => resolve());
-        stream.once("error", reject);
-      });
-      const webStream = Readable.toWeb(stream);
-      return new Response(webStream, {
-        headers: { "Content-Type": "text/html; charset=utf-8" }
-      });
-    } catch {
-      stream?.destroy();
-    }
-  }
-  return void 0;
-}
-function createAppHandler(app, options) {
-  const als = new AsyncLocalStorage();
-  const logger = app.getAdapterLogger();
-  process.on("unhandledRejection", (reason) => {
-    const requestUrl = als.getStore();
-    logger.error(`Unhandled rejection while rendering ${requestUrl}`);
-    console.error(reason);
-  });
-  const client = resolveClientDir(options);
-  const prerenderedErrorPageFetch = async (url) => {
-    const { pathname } = new URL(url);
-    if (pathname.endsWith("/404.html") || pathname.endsWith("/404/index.html")) {
-      const response = await readErrorPageFromDisk(client, 404);
-      if (response) return response;
-    }
-    if (pathname.endsWith("/500.html") || pathname.endsWith("/500/index.html")) {
-      const response = await readErrorPageFromDisk(client, 500);
-      if (response) return response;
-    }
-    return new Response(null, { status: 404 });
-  };
-  const effectiveBodySizeLimit = options.bodySizeLimit === 0 || options.bodySizeLimit === Number.POSITIVE_INFINITY ? void 0 : options.bodySizeLimit;
-  return async (req, res, next, locals) => {
-    let request;
-    try {
-      request = createRequest(req, {
-        allowedDomains: app.getAllowedDomains?.() ?? [],
-        bodySizeLimit: effectiveBodySizeLimit,
-        port: options.port
-      });
-    } catch (err) {
-      logger.error(`Could not render ${req.url}`);
-      console.error(err);
-      res.statusCode = 500;
-      res.end("Internal Server Error");
-      return;
-    }
-    const routeData = app.match(request, true);
-    if (routeData && !(routeData.type === "page" && routeData.prerender)) {
-      const response = await als.run(
-        request.url,
-        () => app.render(request, {
-          addCookieHeader: true,
-          locals,
-          routeData,
-          prerenderedErrorPageFetch
-        })
-      );
-      await writeResponse(response, res);
-    } else if (next) {
-      const cleanup = getAbortControllerCleanup(req);
-      if (cleanup) cleanup();
-      return next();
-    } else {
-      const response = await app.render(request, {
-        addCookieHeader: true,
-        prerenderedErrorPageFetch
-      });
-      await writeResponse(response, res);
-    }
-  };
-}
-
-const wildcardHosts = /* @__PURE__ */ new Set(["0.0.0.0", "::", "0000:0000:0000:0000:0000:0000:0000:0000"]);
-async function logListeningOn(logger, server, configuredHost) {
-  await new Promise((resolve) => server.once("listening", resolve));
-  const protocol = server instanceof https.Server ? "https" : "http";
-  const host = getResolvedHostForHttpServer(configuredHost);
-  const { port } = server.address();
-  const address = getNetworkAddress(protocol, host, port);
-  if (host === void 0 || wildcardHosts.has(host)) {
-    logger.info(
-      `Server listening on 
-  local: ${address.local[0]} 	
-  network: ${address.network[0]}
-`
-    );
-  } else {
-    logger.info(`Server listening on ${address.local[0]}`);
-  }
-}
-function getResolvedHostForHttpServer(host) {
-  if (host === false) {
-    return "localhost";
-  } else if (host === true) {
-    return void 0;
-  } else {
-    return host;
-  }
-}
-function getNetworkAddress(protocol = "http", hostname, port, base) {
-  const NetworkAddress = {
-    local: [],
-    network: []
-  };
-  Object.values(os.networkInterfaces()).flatMap((nInterface) => nInterface ?? []).filter((detail) => detail && detail.address && detail.family === "IPv4").forEach((detail) => {
-    let host = detail.address.replace(
-      "127.0.0.1",
-      hostname === void 0 || wildcardHosts.has(hostname) ? "localhost" : hostname
-    );
-    if (host.includes(":")) {
-      host = `[${host}]`;
-    }
-    const url = `${protocol}://${host}:${port}${""}`;
-    if (detail.address.includes("127.0.0.1")) {
-      NetworkAddress.local.push(url);
-    } else {
-      NetworkAddress.network.push(url);
-    }
-  });
-  return NetworkAddress;
-}
-
-function resolveStaticPath(client, urlPath) {
-  const filePath = path.join(client, urlPath);
-  const resolved = path.resolve(filePath);
-  const resolvedClient = path.resolve(client);
-  if (resolved !== resolvedClient && !resolved.startsWith(resolvedClient + path.sep)) {
-    return { filePath: resolved, isDirectory: false };
-  }
-  let isDirectory = false;
-  try {
-    isDirectory = fs.lstatSync(filePath).isDirectory();
-  } catch {
-  }
-  return { filePath: resolved, isDirectory };
-}
-function createStaticHandler(app, options, headersMap) {
-  const client = resolveClientDir(options);
-  return (req, res, ssr) => {
-    if (req.url) {
-      let fullUrl = req.url;
-      if (req.url.includes("#")) {
-        fullUrl = fullUrl.slice(0, req.url.indexOf("#"));
-      }
-      const [urlPath, urlQuery] = fullUrl.split("?");
-      const { isDirectory } = resolveStaticPath(client, app.removeBase(urlPath));
-      const hasSlash = urlPath.endsWith("/");
-      let pathname = urlPath;
-      switch (app.manifest.trailingSlash) {
-        case "never": {
-          if (isDirectory && urlPath !== "/" && hasSlash) {
-            pathname = urlPath.slice(0, -1) + (urlQuery ? "?" + urlQuery : "");
-            res.statusCode = 301;
-            res.setHeader("Location", pathname);
-            return res.end();
-          }
-          if (isDirectory && !hasSlash) {
-            pathname = `${urlPath}/index.html`;
-          }
-          break;
-        }
-        case "ignore": {
-          if (isDirectory && !hasSlash) {
-            pathname = `${urlPath}/index.html`;
-          }
-          break;
-        }
-        case "always": {
-          if (!hasSlash && !hasFileExtension(urlPath) && !isInternalPath(urlPath)) {
-            pathname = urlPath + "/" + (urlQuery ? "?" + urlQuery : "");
-            res.statusCode = 301;
-            res.setHeader("Location", pathname);
-            return res.end();
-          }
-          break;
-        }
-      }
-      pathname = prependForwardSlash(app.removeBase(pathname));
-      const normalizedPathname = path.posix.normalize(pathname);
-      const stream = send(req, normalizedPathname, {
-        root: client,
-        dotfiles: normalizedPathname.startsWith("/.well-known/") ? "allow" : "deny"
-      });
-      let forwardError = false;
-      stream.on("error", (err) => {
-        if (forwardError) {
-          console.error(err.toString());
-          res.writeHead(500);
-          res.end("Internal server error");
-          return;
-        }
-        ssr();
-      });
-      stream.on("headers", (_res) => {
-        if (normalizedPathname.startsWith(`/${app.manifest.assetsDir}/`)) {
-          _res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-        }
-      });
-      stream.on("file", () => {
-        forwardError = true;
-      });
-      stream.pipe(res);
-    } else {
-      ssr();
-    }
-  };
-}
-function prependForwardSlash(pth) {
-  return pth.startsWith("/") ? pth : "/" + pth;
-}
-
-const hostOptions = (host) => {
-  if (typeof host === "boolean") {
-    return host ? "0.0.0.0" : "localhost";
-  }
-  return host;
-};
-function standalone(app, options, headersMap) {
-  const port = process.env.PORT ? Number(process.env.PORT) : options.port ?? 8080;
-  const host = process.env.HOST ?? hostOptions(options.host);
-  const resolvedOptions = { ...options, port };
-  const handler = createStandaloneHandler(app, resolvedOptions);
-  const server = createServer(handler, host, port);
-  server.server.listen(port, host);
-  if (process.env.ASTRO_NODE_LOGGING !== "disabled") {
-    logListeningOn(app.getAdapterLogger(), server.server, host);
-  }
-  return {
-    server,
-    done: server.closed()
-  };
-}
-function createStandaloneHandler(app, options, headersMap) {
-  const appHandler = createAppHandler(app, options);
-  const staticHandler = createStaticHandler(app, options);
-  return (req, res) => {
-    try {
-      decodeURI(req.url);
-    } catch {
-      res.writeHead(400);
-      res.end("Bad request.");
-      return;
-    }
-    staticHandler(req, res, () => appHandler(req, res));
-  };
-}
-function createServer(listener, host, port) {
-  let httpServer;
-  if (process.env.SERVER_CERT_PATH && process.env.SERVER_KEY_PATH) {
-    httpServer = https.createServer(
-      {
-        key: fs.readFileSync(process.env.SERVER_KEY_PATH),
-        cert: fs.readFileSync(process.env.SERVER_CERT_PATH)
-      },
-      listener
-    );
-  } else {
-    httpServer = http.createServer(listener);
-  }
-  enableDestroy(httpServer);
-  const closed = new Promise((resolve, reject) => {
-    httpServer.addListener("close", resolve);
-    httpServer.addListener("error", reject);
-  });
-  const previewable = {
-    host,
-    port,
-    closed() {
-      return closed;
-    },
-    async stop() {
-      await new Promise((resolve, reject) => {
-        httpServer.destroy((err) => err ? reject(err) : resolve(void 0));
-      });
-    }
-  };
-  return {
-    server: httpServer,
-    ...previewable
-  };
-}
-
-const app = createApp({ streaming: true });
-const handler = createStandaloneHandler(app, options);
-const startServer = () => standalone(app, options);
-if (process.env.ASTRO_NODE_AUTOSTART !== "disabled") {
-  startServer();
-}
-
-export { AstroError as A, ExpectedImage as E, FailedToFetchRemoteImageDimensions as F, IncompatibleDescriptorOptions as I, LocalImageUsedWrongly as L, MissingImageDimension as M, NoImageMetadata as N, RemoteImageNotAllowed as R, UnsupportedImageFormat as U, isRemotePath as a, UnsupportedImageConversion as b, InvalidImageService as c, ExpectedImageOptions as d, ExpectedNotESMImage as e, ImageMissingAlt as f, addAttribute as g, FontFamilyNotFound as h, isRemoteAllowed as i, joinPaths as j, removeQueryString as k, isParentDirectory as l, maybeRenderHead as m, renderComponent as n, renderHead as o, renderSlot as p, InvalidComponentArgs as q, renderTemplate as r, spreadAttributes as s, MissingSharp as t, unescapeHTML as u, handler as v, options as w, startServer as x };
+export { app, manifest };

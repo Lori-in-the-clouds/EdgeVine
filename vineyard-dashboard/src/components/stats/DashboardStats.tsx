@@ -8,6 +8,66 @@ import {
   Droplets, Sprout, Map as MapIcon, Plus, CheckCircle, AlertTriangle, Cpu
 } from 'lucide-react';
 
+const activeBoundCache: { [cx: number]: { lower?: number; upper?: number } } = {};
+
+function ActiveBoundDot(props: any) {
+  const { cx, cy, stroke, type } = props;
+  if (!cx || !cy) return null;
+
+  // Cache the Y coordinate for this X point
+  if (!activeBoundCache[cx]) {
+    activeBoundCache[cx] = {};
+  }
+  if (type === 'lower') {
+    activeBoundCache[cx].lower = cy;
+  } else {
+    activeBoundCache[cx].upper = cy;
+  }
+
+  return (
+    <line
+      x1={cx - 12}
+      y1={cy}
+      x2={cx + 12}
+      y2={cy}
+      stroke={stroke}
+      strokeWidth={2.5}
+    />
+  );
+}
+
+function ActiveExpectedDot(props: any) {
+  const { cx, cy, stroke } = props;
+  if (!cx || !cy) return null;
+
+  const cached = activeBoundCache[cx];
+  const cyLower = cached?.lower !== undefined ? cached.lower : cy + 20;
+  const cyUpper = cached?.upper !== undefined ? cached.upper : cy - 20;
+
+  return (
+    <g>
+      {/* Vertical line connecting the two bounds */}
+      <line
+        x1={cx}
+        y1={cyLower}
+        x2={cx}
+        y2={cyUpper}
+        stroke={stroke}
+        strokeWidth={2}
+      />
+      {/* Solid circle dot for the Expected value */}
+      <circle
+        cx={cx}
+        cy={cy}
+        r={3}
+        fill={stroke}
+        stroke="#fff"
+        strokeWidth={1.2}
+      />
+    </g>
+  );
+}
+
 export function DashboardStats() {
   const [history, setHistory] = useState<any[]>([]);
   const [latestStats, setLatestStats] = useState<any>(null);
@@ -62,6 +122,8 @@ export function DashboardStats() {
               stress: Math.round((d.health.stress / leafTotal) * 100),
               disease: Math.round((d.health.disease / leafTotal) * 100),
               totalWine: d.production.estimated_liters,
+              totalWineMin: d.production.estimated_liters_min,
+              totalWineMax: d.production.estimated_liters_max,
               confidence: d.production.confidence,
               leavesAnalyzed: d.production.leaves_analyzed,
               temp: d.global.temp,
@@ -188,7 +250,7 @@ export function DashboardStats() {
           <div className="h-[350px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={history}>
-                <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
                 <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }} dy={15} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }} dx={-15} />
                 <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', padding: '20px' }} />
@@ -232,7 +294,6 @@ export function DashboardStats() {
               <div className="bg-indigo-100 rounded-[2.5rem] p-8 shadow-sm border border-indigo-200/50 flex flex-col gap-6">
                 <div className="flex items-center justify-between">
                   <h3 className="font-manrope font-black text-lg text-stone-800 tracking-tight uppercase text-[11px] opacity-70">Temperature Forecast (48h)</h3>
-                  <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
                 </div>
 
                 {predictions.temperature.alerts.status === 'ALARM' ? (
@@ -256,13 +317,13 @@ export function DashboardStats() {
                 <div className="h-[280px] w-full mt-4">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={predictions.temperature.forecast}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
                       <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={(val) => new Date(val).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dx={-10} domain={['auto', 'auto']} />
                       <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={(val) => new Date(val).toLocaleString()} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
-                      <Line type="monotone" dataKey="yhat" name="Expected (°C)" stroke="#ef4444" strokeWidth={4} dot={false} />
-                      <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} opacity={0.5} />
-                      <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} opacity={0.5} />
+                      <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="lower" />} opacity={0.5} />
+                      <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="upper" />} opacity={0.5} />
+                      <Line type="monotone" dataKey="yhat" name="Expected (°C)" stroke="#ef4444" strokeWidth={4} dot={false} activeDot={<ActiveExpectedDot />} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -272,7 +333,6 @@ export function DashboardStats() {
               <div className="bg-indigo-100 rounded-[2.5rem] p-8 shadow-sm border border-indigo-200/50 flex flex-col gap-6">
                 <div className="flex items-center justify-between">
                   <h3 className="font-manrope font-black text-lg text-stone-800 tracking-tight uppercase text-[11px] opacity-70">Soil Moisture Forecast (72h)</h3>
-                  <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></div>
                 </div>
 
                 {predictions.moisture.alerts.status === 'ALARM' ? (
@@ -296,13 +356,13 @@ export function DashboardStats() {
                 <div className="h-[280px] w-full mt-4">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={predictions.moisture.forecast}>
-                      <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
                       <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={(val) => new Date(val).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dx={-10} domain={['auto', 'auto']} />
                       <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={(val) => new Date(val).toLocaleString()} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
-                      <Line type="monotone" dataKey="yhat" name="Expected (%)" stroke="#3b82f6" strokeWidth={4} dot={false} />
-                      <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} opacity={0.5} />
-                      <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} opacity={0.5} />
+                      <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="lower" />} opacity={0.5} />
+                      <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="upper" />} opacity={0.5} />
+                      <Line type="monotone" dataKey="yhat" name="Expected (%)" stroke="#3b82f6" strokeWidth={4} dot={false} activeDot={<ActiveExpectedDot />} />
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
@@ -323,8 +383,11 @@ export function DashboardStats() {
             <div className="relative z-10 flex-1 flex flex-col justify-center">
               <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-3">Projected Volumetric Output</p>
               <div className="flex items-baseline gap-2">
-                <span className="text-7xl font-manrope font-black tracking-tighter leading-none">{latestStats?.totalWine.toLocaleString() || '--'}</span>
+                <span className="text-7xl font-manrope font-black tracking-tighter leading-none">{latestStats?.totalWine?.toLocaleString() || '--'}</span>
                 <span className="text-3xl font-manrope font-bold opacity-70">L</span>
+                {latestStats?.totalWineMax && latestStats?.totalWineMax > latestStats?.totalWine && (
+                  <span className="text-2xl font-manrope font-bold opacity-50 ml-3">± {Math.round(latestStats.totalWineMax - latestStats.totalWine).toLocaleString()} L</span>
+                )}
               </div>
             </div>
             <Wine className="absolute -bottom-8 -right-8 w-64 h-64 text-white/5 -rotate-12 pointer-events-none" />
@@ -410,7 +473,8 @@ export function DashboardStats() {
 function VisionAnalyzedCard({ img }: { img: any }) {
   const [showModal, setShowModal] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [result, setResult] = useState<any>(img.grape_count !== null ? {
+  // Only consider already-analyzed if we have a processed image URL (bounding boxes)
+  const [result, setResult] = useState<any>(img.processed_image_url ? {
     grape_count: img.grape_count,
     health_prediction: img.health_status,
     liters_estimated: img.estimated_liters,
@@ -419,7 +483,7 @@ function VisionAnalyzedCard({ img }: { img: any }) {
   const [error, setError] = useState<string | null>(null);
 
   const startAnalysis = async () => {
-    if (isAnalyzing || result) return;
+    if (isAnalyzing || (result && result.processed_image_url)) return;
     setIsAnalyzing(true);
     setError(null);
     try {
@@ -433,6 +497,26 @@ function VisionAnalyzedCard({ img }: { img: any }) {
       const data = await res.json();
       if (data.success) {
         setResult(data.data);
+
+        // Persist inference result to database
+        try {
+          await fetch('/api/vision/save-result', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              recordId: img.id,
+              grape_count: data.data.grape_count,
+              health_status: data.data.health_prediction,
+              estimated_liters: data.data.liters_estimated,
+              processed_image_url: data.data.processed_image_url,
+              leaf_healthy_count: data.data.leaf_healthy_count ?? 0,
+              leaf_stress_count: data.data.leaf_stress_count ?? 0,
+              leaf_disease_count: data.data.leaf_disease_count ?? 0
+            })
+          });
+        } catch (saveErr) {
+          console.warn("Failed to persist inference result:", saveErr);
+        }
       } else {
         setError(data.details || data.error || "Analysis failed");
       }
@@ -444,11 +528,12 @@ function VisionAnalyzedCard({ img }: { img: any }) {
     }
   };
 
+  // Auto-trigger inference on mount if not already analyzed
   useEffect(() => {
-    if (showModal && !result) {
+    if (!result && !isAnalyzing) {
       startAnalysis();
     }
-  }, [showModal]);
+  }, []);
 
   const processedImg = result?.processed_image_url ? `${result.processed_image_url}?t=${Date.now()}` : null;
   const healthStatus = result ? result.health_prediction : 'Pending';
@@ -480,15 +565,27 @@ function VisionAnalyzedCard({ img }: { img: any }) {
           <div className="absolute top-4 left-4 px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
             <p className="text-[8px] font-black text-white uppercase tracking-widest">{img.sensor_name}</p>
           </div>
-          {result && img.grape_count !== -1 && (
-            <div className="absolute bottom-4 left-4">
-              <span className="text-[9px] font-black text-[#228B22] bg-white/90 px-3 py-1 rounded-full uppercase tracking-widest shadow-xl">AI Processed</span>
+          {isAnalyzing && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[1px]">
+              <div className="animate-spin rounded-full h-8 w-8 border-2 border-white/20 border-t-[#228B22]"></div>
             </div>
           )}
+          <div className="absolute bottom-4 left-4">
+            {isAnalyzing ? (
+              <span className="flex items-center gap-2 text-[9px] font-black text-stone-300 bg-stone-950/80 backdrop-blur-md px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-white/10">
+                <span className="w-2.5 h-2.5 rounded-full border-2 border-white/20 border-t-[#228B22] animate-spin"></span>
+                Inference Running
+              </span>
+            ) : result && img.grape_count !== -1 ? (
+              <span className="flex items-center gap-2 text-[9px] font-black text-[#228B22] bg-white/95 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-emerald-500/10">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#228B22]"></span>
+                Inference Complete
+              </span>
+            ) : null}
+          </div>
         </div>
         <div className="p-5 bg-white border-t border-stone-50 flex items-center justify-between">
           <p className="text-[9px] font-black text-stone-300 font-manrope uppercase tracking-[0.2em]">{img.date}</p>
-          <div className="w-1.5 h-1.5 rounded-full bg-[#228B22]/20 animate-pulse"></div>
         </div>
       </div>
 
