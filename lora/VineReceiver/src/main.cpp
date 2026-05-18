@@ -1,18 +1,38 @@
 #include <Arduino.h>
+#include <ArduinoJson.h>
+#include <LoRa_E220.h>
 
-// put function declarations here:
-int myFunction(int, int);
+#define ID 0
+#define LORA_RX 2
+#define LORA_TX 3
+#define LORA_AUX 7
+#define LORA_M0 4
+#define LORA_M1 5
+
+LoRa_E220 lora(LORA_RX, LORA_TX, LORA_AUX, LORA_M0, LORA_M1);
+
+JsonDocument json;
 
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+  Serial.begin(9600);
+  lora.begin();
+  
+  json["id"] = ID;
+  
+  delay(500);
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-}
+  if (lora.available() > 1) {
+    ResponseContainer rc = lora.receiveMessage();
 
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+    if (rc.status.code != 1) {
+      Serial.print("Error receiving LoRa message: ");
+      Serial.println(rc.status.getResponseDescription());
+      return;
+    } else {
+      Serial.print("Received LoRa message: ");
+      Serial.println(rc.data);
+    }
+  }
 }
