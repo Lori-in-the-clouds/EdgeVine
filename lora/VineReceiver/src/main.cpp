@@ -32,8 +32,6 @@ void loop() {
       Serial.println(rc.status.getResponseDescription());
       return;
     } else {
-      Serial.println(rc.status.getResponseDescription());
-      Serial.print("Received LoRa message: ");
       Serial.println(rc.data);
     }
   }
