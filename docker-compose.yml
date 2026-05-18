@@ -1,0 +1,95 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    environment:
+      POSTGRES_USER: sensore_user
+      POSTGRES_PASSWORD: sensore_password
+      POSTGRES_DB: sensori
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U sensore_user -d sensori || exit 1" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  vineyard-dashboard:
+    build: vineyard-dashboard
+    container_name: vineyard-dashboard
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: sensori
+      POSTGRES_USER: sensore_user
+      POSTGRES_PASSWORD: sensore_password
+      DATABASE_URL: "postgresql://sensore_user:sensore_password@postgres:5432/sensori"
+      ZONE_STALE_MINUTES: 30
+      ZONE_TEMPERATURE_MIN: 5
+      ZONE_TEMPERATURE_MAX: 35
+      ZONE_HUMIDITY_MIN: 35
+      ZONE_MOISTURE_MIN: 250
+      HOST: 0.0.0.0
+      PORT: 4321
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ../vineyard-dashboard:/app
+      - /app/node_modules
+      - ../CV:/CV
+    ports:
+      - "4321:4321"
+    restart: unless-stopped
+
+  analytics-fetch:
+    build: ./analytics
+    container_name: analytics-fetch
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: sensori
+      POSTGRES_USER: sensore_user
+      POSTGRES_PASSWORD: sensore_password
+      VINEYARD_LATITUDE: 43.0573
+      VINEYARD_LONGITUDE: 11.4891
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./analytics/archive:/app/archive
+      - ./analytics/scripts:/app/scripts
+      - ./analytics/analysis_utils.py:/app/analysis_utils.py
+    restart: unless-stopped
+    command: ["python", "scripts/fetch_and_archive.py"]
+
+  analytics-api:
+    build: ./analytics
+    container_name: analytics-api
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: sensori
+      POSTGRES_USER: sensore_user
+      POSTGRES_PASSWORD: sensore_password
+      ANALYTICS_PORT: 5001
+      PREDICTION_INTERVAL: 14400
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./analytics/archive:/app/archive
+      - ./analytics/scripts:/app/scripts
+      - ./analytics/analysis_utils.py:/app/analysis_utils.py
+    restart: unless-stopped
+    command: ["python", "scripts/prediction_server.py"]
+
+
+volumes:
+  postgres_data:

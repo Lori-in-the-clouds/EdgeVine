@@ -15,3 +15,4 @@ vineyard-dashboard/.idea/
 !BoxPR_curve.png
 !confusion_matrix_normalized.png
 mqtt-server/mqtt-subscriber/__pycache__/
+*.code-workspace
