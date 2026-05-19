@@ -50,13 +50,13 @@ export const GET: APIRoute = async ({ url }) => {
     // 1. Statistiche Globali (Ultima lettura conosciuta per ogni sensore)
     const currentStats = await sql<any>(`
       WITH latest_readings AS (
-        SELECT DISTINCT ON (sensor_id) 
+        SELECT DISTINCT ON (monitoring_node_id)
           temperature,
           humidity,
           ${moisturePercent} as moisture,
-          sensor_id
+          monitoring_node_id
         FROM sensor_measurements
-        ORDER BY sensor_id, timestamp DESC
+        ORDER BY monitoring_node_id, timestamp DESC
       )
       SELECT 
         AVG(temperature) as avg_temp,
@@ -69,13 +69,13 @@ export const GET: APIRoute = async ({ url }) => {
     // 2. Analisi Salute GRANULARE (Conteggio Foglie AI)
     const healthData = await sql<any>(`
       WITH latest_zone_status AS (
-        SELECT DISTINCT ON (zone_id)
+        SELECT DISTINCT ON (monitoring_node_id)
           leaf_healthy_count, 
           leaf_stress_count, 
           leaf_disease_count,
-          zone_id
+          monitoring_node_id
         FROM computer_vision_data
-        ORDER BY zone_id, timestamp DESC
+        ORDER BY monitoring_node_id, timestamp DESC
       )
       SELECT 
         SUM(leaf_healthy_count) as total_healthy,
@@ -117,7 +117,7 @@ export const GET: APIRoute = async ({ url }) => {
       SELECT * FROM (
         SELECT DISTINCT ON (cv.image_url)
           cv.id,
-          COALESCE(vz.name, vz.external_id) as sensor_name,
+          COALESCE(mn.name, mn.external_id, 'Unknown node') as sensor_name,
           cv.timestamp,
           TO_CHAR(cv.timestamp, 'DD/MM') as date,
           TO_CHAR(cv.timestamp, 'HH24:MI') as time,
@@ -129,7 +129,7 @@ export const GET: APIRoute = async ({ url }) => {
           COALESCE(cv.estimated_liters_max, cv.estimated_liters * $2) as estimated_liters_max,
           cv.processed_image_url
         FROM computer_vision_data cv
-        JOIN vine_zone vz ON vz.id = cv.zone_id
+        LEFT JOIN monitoring_node mn ON mn.id = cv.monitoring_node_id
         WHERE cv.image_url IS NOT NULL
         ORDER BY cv.image_url, cv.timestamp DESC
       ) sub
@@ -140,10 +140,10 @@ export const GET: APIRoute = async ({ url }) => {
     // 5. Logica Previsionale basata su AI
     const aiPrediction = await sql<any>(`
       WITH latest_ai AS (
-        SELECT DISTINCT ON (zone_id) estimated_liters, estimated_liters_min, estimated_liters_max
+        SELECT DISTINCT ON (monitoring_node_id) estimated_liters, estimated_liters_min, estimated_liters_max
         FROM computer_vision_data
         WHERE estimated_liters IS NOT NULL
-        ORDER BY zone_id, timestamp DESC
+        ORDER BY monitoring_node_id, timestamp DESC
       )
       SELECT 
         SUM(estimated_liters) as total_predicted_liters,
@@ -157,7 +157,7 @@ export const GET: APIRoute = async ({ url }) => {
     const leafDisease = parseInt(healthData.rows[0].total_disease || 0);
     const totalLeaves = leafHealthy + leafStress + leafDisease;
 
-    const totalZones = await sql<any>(`SELECT COUNT(*) FROM vine_zone`).then(res => parseInt(res.rows[0].count || 0));
+    const totalZones = await sql<any>(`SELECT COUNT(*) FROM monitoring_node`).then(res => parseInt(res.rows[0].count || 0));
 
     const chartData = (history.rows as TelemetryHistoryRow[]).map((row) => ({
       time: row.time,

@@ -11,14 +11,15 @@ export const GET: APIRoute = async () => {
   try {
     const result = await sql<any>(`
       SELECT 
-        vz.id as zone_id, 
-        vz.number as zone_number,
-        vz.name as zone_name,
-        vz.external_id,
-        vz.sector_id,
-        COALESCE(vz.latitude, v.latitude) as latitude,
-        COALESCE(vz.longitude, v.longitude) as longitude,
-        sm.sensor_id,
+        mn.id as monitoring_node_id,
+        mn.id as zone_id,
+        mn.number as zone_number,
+        mn.name as zone_name,
+        mn.external_id,
+        mn.sector_id,
+        COALESCE(mn.latitude, v.latitude) as latitude,
+        COALESCE(mn.longitude, v.longitude) as longitude,
+        sm.monitoring_node_id as sensor_id,
         sm.temperature,
         sm.humidity,
         sm.moisture,
@@ -31,19 +32,19 @@ export const GET: APIRoute = async () => {
         cv.leaf_stress_count,
         cv.leaf_disease_count,
         cv.estimated_liters
-      FROM vine_zone vz
-      JOIN vineyard v ON v.id = vz.vineyard_id
+      FROM monitoring_node mn
+      JOIN vineyard v ON v.id = mn.vineyard_id
       LEFT JOIN LATERAL (
         SELECT *
         FROM sensor_measurements
-        WHERE zone_id = vz.id
+        WHERE monitoring_node_id = mn.id
         ORDER BY timestamp DESC 
         LIMIT 1
       ) sm ON true
       LEFT JOIN LATERAL (
         SELECT *
         FROM computer_vision_data
-        WHERE zone_id = vz.id
+        WHERE monitoring_node_id = mn.id
         ORDER BY timestamp DESC
         LIMIT 1
       ) cv ON true

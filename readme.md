@@ -5,22 +5,27 @@
 The dashboard keeps the existing vineyard hierarchy:
 
 - `vineyard`
-- `vine_zone`
-- `sensor`
+- `vineyard_sector`
+- `monitoring_node`
 - `sensor_measurements`
 - `computer_vision_data`
 
-`sensor_measurements` stores only sensor telemetry: temperature, humidity, moisture, timestamps, and references to the sensor, zone, and vineyard.
+`vineyard_sector` stores each configured sector/block, including its polygon and row configuration/geometry. Rows are sector-level data and are not stored in a separate table.
 
-`computer_vision_data` stores image and inference data: image paths, processed image paths, grape counts, health status, leaf counts, yield estimates, timestamps, and optional links back to the related sensor measurement.
+`monitoring_node` stores the field nodes currently shown as sentinels in the dashboard. A vineyard can have multiple monitoring nodes, and each node can produce telemetry samples and camera captures.
+
+`sensor_measurements` stores only node telemetry: temperature, humidity, moisture, timestamps, and references to the monitoring node and vineyard.
+
+`computer_vision_data` stores image and inference data: image paths, processed image paths, grape counts, health status, leaf counts, yield estimates, timestamps, and links back to the monitoring node and optional related sensor measurement.
 
 Existing deployments that still have the legacy mixed `sensor_data` table can run:
 
 ```sh
 psql "$DATABASE_URL" -f postgres/migrations/001_split_sensor_measurements_and_vision.sql
+psql "$DATABASE_URL" -f postgres/migrations/002_normalize_vineyard_sectors_and_nodes.sql
 ```
 
-The migration is additive and leaves `sensor_data` in place for verification. New application reads and writes use the split tables.
+The first migration splits legacy mixed telemetry/CV data. The second migration normalizes sectors and monitoring nodes, replacing the old `vine_zone`/`sensor` persistence model.
 
 For local/demo data, run:
 
@@ -28,7 +33,7 @@ For local/demo data, run:
 psql "$DATABASE_URL" -f postgres/seed.sql
 ```
 
-The seed inserts one vineyard, five vine zones, one sensor per zone, and hourly sensor measurements from January 1, 2025 through the current hour.
+The seed inserts one vineyard, five vineyard sectors, one monitoring node per sector, and hourly sensor measurements from January 1, 2025 through the current hour.
 
 ## Runtime data flow
 

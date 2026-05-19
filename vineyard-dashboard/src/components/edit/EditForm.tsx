@@ -210,7 +210,7 @@ export function EditForm() {
           centroid: landCentroid,
           sectors: sectors,
           zones: sentinels.map(s => {
-            let s_id = null;
+            let s_id: string | null = null;
             try {
               const lng = Number(s.longitude);
               const lat = Number(s.latitude);
@@ -221,7 +221,7 @@ export function EditForm() {
                   return booleanPointInPolygon(point([lng, lat]), sec.perimeter);
                 });
                 if (sector) {
-                  s_id = sector.name; // Salviamo il NOME (es. "Sector 1")
+                  s_id = sector.id;
                   console.log(`Sentinel ${s.number} matched to: ${s_id}`);
                 } else {
                   console.warn(`Sentinel ${s.number} is OUTSIDE all sectors`);

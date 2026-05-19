@@ -1,6 +1,6 @@
 -- Demo seed data for EdgeVine.
--- Inserts one vineyard, five vine zones, one sensor per zone, and hourly
--- sensor measurements from 2025-01-01 00:00 until the current hour.
+-- Inserts one vineyard, five vineyard sectors, one monitoring node per sector,
+-- and hourly sensor measurements from 2025-01-01 00:00 until the current hour.
 
 WITH seeded_vineyard AS (
     INSERT INTO vineyard (
@@ -16,7 +16,6 @@ WITH seeded_vineyard AS (
         email,
         name_vineyard,
         area,
-        sectors,
         total_row_meters,
         total_rows_count,
         sectors_count,
@@ -35,11 +34,10 @@ WITH seeded_vineyard AS (
         'demo@edgevine.local',
         'Vineyard Toscana',
         'Demo vineyard',
-        '[]'::jsonb,
         500,
         25,
         5,
-        'North, East, South, West, Central'
+        'North Block, East Block, South Block, West Block, Central Block'
     )
     ON CONFLICT (id) DO UPDATE SET
         name = EXCLUDED.name,
@@ -53,78 +51,160 @@ WITH seeded_vineyard AS (
         email = EXCLUDED.email,
         name_vineyard = EXCLUDED.name_vineyard,
         area = EXCLUDED.area,
-        sectors = EXCLUDED.sectors,
         total_row_meters = EXCLUDED.total_row_meters,
         total_rows_count = EXCLUDED.total_rows_count,
         sectors_count = EXCLUDED.sectors_count,
-        sector_names = EXCLUDED.sector_names
+        sector_names = EXCLUDED.sector_names,
+        updated_at = CURRENT_TIMESTAMP
     RETURNING id
 ),
-seed_zones AS (
+seed_sectors AS (
     SELECT *
     FROM (
         VALUES
-            (1, 'North Block', 'S-01', 43.0581, 11.4884, 'north'),
-            (2, 'East Block', 'S-02', 43.0577, 11.4902, 'east'),
-            (3, 'South Block', 'S-03', 43.0566, 11.4900, 'south'),
-            (4, 'West Block', 'S-04', 43.0569, 11.4879, 'west'),
-            (5, 'Central Block', 'S-05', 43.0573, 11.4891, 'central')
-    ) AS zone(number, name, external_id, latitude, longitude, sector_id)
+            ('north', 1, 'North Block', 43.0581, 11.4884, '#10B981', '#FCD34D'),
+            ('east', 2, 'East Block', 43.0577, 11.4902, '#3B82F6', '#FFFFFF'),
+            ('south', 3, 'South Block', 43.0566, 11.4900, '#EA580C', '#22D3EE'),
+            ('west', 4, 'West Block', 43.0569, 11.4879, '#7C3AED', '#4ADE80'),
+            ('central', 5, 'Central Block', 43.0573, 11.4891, '#DC2626', '#FACC15')
+    ) AS sector(id, display_order, name, center_lat, center_lng, poly_color, rows_color)
 ),
-upserted_zones AS (
-    INSERT INTO vine_zone (
-        number,
+sector_payloads AS (
+    SELECT
+        sector.id,
+        seeded_vineyard.id AS vineyard_id,
+        sector.display_order,
+        sector.name,
+        jsonb_build_object(
+            'type', 'Feature',
+            'geometry', jsonb_build_object(
+                'type', 'Polygon',
+                'coordinates', jsonb_build_array(jsonb_build_array(
+                    jsonb_build_array(sector.center_lng - 0.0004, sector.center_lat + 0.0003),
+                    jsonb_build_array(sector.center_lng + 0.0004, sector.center_lat + 0.0003),
+                    jsonb_build_array(sector.center_lng + 0.0004, sector.center_lat - 0.0003),
+                    jsonb_build_array(sector.center_lng - 0.0004, sector.center_lat - 0.0003),
+                    jsonb_build_array(sector.center_lng - 0.0004, sector.center_lat + 0.0003)
+                ))
+            ),
+            'properties', jsonb_build_object()
+        ) AS perimeter,
+        (
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'id', 'R-' || lpad(((sector.display_order - 1) * 5 + row_index)::text, 2, '0'),
+                    'points', jsonb_build_array(
+                        jsonb_build_array(sector.center_lat - 0.00025 + row_index * 0.00008, sector.center_lng - 0.0003),
+                        jsonb_build_array(sector.center_lat - 0.00025 + row_index * 0.00008, sector.center_lng + 0.0003)
+                    ),
+                    'length', 20
+                )
+                ORDER BY row_index
+            )
+            FROM generate_series(1, 5) AS row_index
+        ) AS rows,
+        jsonb_build_object('poly', sector.poly_color, 'rows', sector.rows_color) AS color_theme
+    FROM seed_sectors sector
+    CROSS JOIN seeded_vineyard
+),
+upserted_sectors AS (
+    INSERT INTO vineyard_sector (
+        id,
         vineyard_id,
         name,
-        external_id,
-        latitude,
-        longitude,
-        sector_id
+        perimeter,
+        rows,
+        row_orientation,
+        row_spacing,
+        target_row_count,
+        show_rows,
+        color_theme,
+        display_order,
+        area_square_meters,
+        total_row_meters,
+        row_count
     )
     SELECT
-        zone.number,
+        id,
+        vineyard_id,
+        name,
+        perimeter,
+        rows,
+        0,
+        2,
+        5,
+        true,
+        color_theme,
+        display_order,
+        3500,
+        100,
+        5
+    FROM sector_payloads
+    ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        perimeter = EXCLUDED.perimeter,
+        rows = EXCLUDED.rows,
+        row_orientation = EXCLUDED.row_orientation,
+        row_spacing = EXCLUDED.row_spacing,
+        target_row_count = EXCLUDED.target_row_count,
+        show_rows = EXCLUDED.show_rows,
+        color_theme = EXCLUDED.color_theme,
+        display_order = EXCLUDED.display_order,
+        area_square_meters = EXCLUDED.area_square_meters,
+        total_row_meters = EXCLUDED.total_row_meters,
+        row_count = EXCLUDED.row_count,
+        updated_at = CURRENT_TIMESTAMP
+    RETURNING id, vineyard_id, name, display_order
+),
+seed_nodes AS (
+    SELECT *
+    FROM (
+        VALUES
+            (1, 'north', 'S-01', 'S-01', 43.0581, 11.4884),
+            (2, 'east', 'S-02', 'S-02', 43.0577, 11.4902),
+            (3, 'south', 'S-03', 'S-03', 43.0566, 11.4900),
+            (4, 'west', 'S-04', 'S-04', 43.0569, 11.4879),
+            (5, 'central', 'S-05', 'S-05', 43.0573, 11.4891)
+    ) AS node(number, sector_id, external_id, name, latitude, longitude)
+),
+upserted_nodes AS (
+    INSERT INTO monitoring_node (
+        vineyard_id,
+        sector_id,
+        number,
+        external_id,
+        name,
+        latitude,
+        longitude
+    )
+    SELECT
         seeded_vineyard.id,
-        zone.name,
-        zone.external_id,
-        zone.latitude,
-        zone.longitude,
-        zone.sector_id
-    FROM seed_zones zone
+        node.sector_id,
+        node.number,
+        node.external_id,
+        node.name,
+        node.latitude,
+        node.longitude
+    FROM seed_nodes node
     CROSS JOIN seeded_vineyard
     ON CONFLICT (vineyard_id, number) DO UPDATE SET
-        name = EXCLUDED.name,
+        sector_id = EXCLUDED.sector_id,
         external_id = EXCLUDED.external_id,
+        name = EXCLUDED.name,
         latitude = EXCLUDED.latitude,
         longitude = EXCLUDED.longitude,
-        sector_id = EXCLUDED.sector_id
-    RETURNING id, number, vineyard_id, external_id, name
-),
-upserted_sensors AS (
-    INSERT INTO sensor (
-        zone_id,
-        external_id,
-        name
-    )
-    SELECT
-        zone.id,
-        zone.external_id,
-        'Sensor ' || zone.external_id
-    FROM upserted_zones zone
-    ON CONFLICT (zone_id, external_id) DO UPDATE SET
-        name = EXCLUDED.name
-    RETURNING id, zone_id, external_id
+        updated_at = CURRENT_TIMESTAMP
+    RETURNING id, vineyard_id, number
 ),
 hourly_samples AS (
     SELECT
-        sensor.id AS sensor_id,
-        zone.id AS zone_id,
-        zone.vineyard_id,
+        node.id AS monitoring_node_id,
+        node.vineyard_id,
         sample.timestamp,
-        zone.number AS zone_number,
+        node.number AS node_number,
         EXTRACT(HOUR FROM sample.timestamp)::integer AS hour_of_day,
         EXTRACT(DOY FROM sample.timestamp)::integer AS day_of_year
-    FROM upserted_zones zone
-    JOIN upserted_sensors sensor ON sensor.zone_id = zone.id
+    FROM upserted_nodes node
     CROSS JOIN generate_series(
         TIMESTAMP '2025-01-01 00:00:00',
         date_trunc('hour', NOW()),
@@ -132,8 +212,7 @@ hourly_samples AS (
     ) AS sample(timestamp)
 )
 INSERT INTO sensor_measurements (
-    sensor_id,
-    zone_id,
+    monitoring_node_id,
     vineyard_id,
     timestamp,
     temperature,
@@ -141,39 +220,43 @@ INSERT INTO sensor_measurements (
     moisture
 )
 SELECT
-    sample.sensor_id,
-    sample.zone_id,
+    sample.monitoring_node_id,
     sample.vineyard_id,
     sample.timestamp,
     round((
         18
         + 9 * sin((sample.hour_of_day - 7) * pi() / 12)
         + 5 * sin((sample.day_of_year - 172) * 2 * pi() / 365)
-        + sample.zone_number * 0.35
+        + sample.node_number * 0.35
     )::numeric, 2)::float8 AS temperature,
     round((
         62
         - 14 * sin((sample.hour_of_day - 7) * pi() / 12)
         - 6 * sin((sample.day_of_year - 172) * 2 * pi() / 365)
-        + sample.zone_number * 0.4
+        + sample.node_number * 0.4
     )::numeric, 2)::float8 AS humidity,
     round((
         34
-        + 8 * sin((sample.day_of_year + sample.zone_number * 9) * 2 * pi() / 30)
+        + 8 * sin((sample.day_of_year + sample.node_number * 9) * 2 * pi() / 30)
         - 4 * sin(sample.hour_of_day * pi() / 12)
-        - sample.zone_number * 0.8
+        - sample.node_number * 0.8
     )::numeric, 2)::float8 AS moisture
 FROM hourly_samples sample
 WHERE NOT EXISTS (
     SELECT 1
     FROM sensor_measurements existing
-    WHERE existing.sensor_id = sample.sensor_id
-      AND existing.zone_id = sample.zone_id
+    WHERE existing.monitoring_node_id = sample.monitoring_node_id
       AND existing.timestamp = sample.timestamp
 );
 
 SELECT setval(
     pg_get_serial_sequence('vineyard', 'id'),
     COALESCE((SELECT MAX(id) FROM vineyard), 1),
+    true
+);
+
+SELECT setval(
+    pg_get_serial_sequence('monitoring_node', 'id'),
+    COALESCE((SELECT MAX(id) FROM monitoring_node), 1),
     true
 );

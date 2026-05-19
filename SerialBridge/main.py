@@ -20,7 +20,7 @@ VINEYARD_ID = int(os.getenv("VINEYARD_ID", "1"))
 VINEYARD_NAME = os.getenv("VINEYARD_NAME", f"Vineyard {VINEYARD_ID}")
 
 
-def parse_zone_number(device_id):
+def parse_node_number(device_id):
     match = re.search(r"(\d+)", str(device_id))
     return int(match.group(1)) if match else 0
 
@@ -36,11 +36,11 @@ def ensure_vineyard(cur):
     )
 
 
-def get_or_create_zone(cur, device_id):
+def get_or_create_monitoring_node(cur, device_id):
     cur.execute(
         """
         SELECT id
-        FROM vine_zone
+        FROM monitoring_node
         WHERE vineyard_id = %s AND (external_id = %s OR number::text = %s)
         LIMIT 1
         """,
@@ -50,51 +50,38 @@ def get_or_create_zone(cur, device_id):
     if row:
         return row[0]
 
-    zone_number = parse_zone_number(device_id)
+    node_number = parse_node_number(device_id)
     cur.execute(
         """
-        INSERT INTO vine_zone (number, vineyard_id, external_id)
-        VALUES (%s, %s, %s)
+        INSERT INTO monitoring_node (number, vineyard_id, external_id, name)
+        VALUES (%s, %s, %s, %s)
         ON CONFLICT (vineyard_id, number)
-        DO UPDATE SET external_id = COALESCE(vine_zone.external_id, EXCLUDED.external_id)
+        DO UPDATE SET
+            external_id = COALESCE(monitoring_node.external_id, EXCLUDED.external_id),
+            name = COALESCE(monitoring_node.name, EXCLUDED.name),
+            updated_at = CURRENT_TIMESTAMP
         RETURNING id
         """,
-        (zone_number, VINEYARD_ID, str(device_id)),
-    )
-    return cur.fetchone()[0]
-
-
-def get_or_create_sensor(cur, zone_id, device_id):
-    cur.execute(
-        """
-        INSERT INTO sensor (zone_id, external_id, name)
-        VALUES (%s, %s, %s)
-        ON CONFLICT (zone_id, external_id)
-        DO UPDATE SET name = COALESCE(EXCLUDED.name, sensor.name)
-        RETURNING id
-        """,
-        (zone_id, str(device_id), f"Sensor {device_id}"),
+        (node_number, VINEYARD_ID, str(device_id), f"Node {device_id}"),
     )
     return cur.fetchone()[0]
 
 
 def insert_measurement(cur, device_id, temperature, humidity, moisture):
-    zone_id = get_or_create_zone(cur, device_id)
-    sensor_id = get_or_create_sensor(cur, zone_id, device_id)
+    monitoring_node_id = get_or_create_monitoring_node(cur, device_id)
     cur.execute(
         """
         INSERT INTO sensor_measurements (
-            sensor_id,
-            zone_id,
+            monitoring_node_id,
             vineyard_id,
             temperature,
             humidity,
             moisture,
             timestamp
         )
-        VALUES (%s, %s, %s, %s, %s, %s, NOW())
+        VALUES (%s, %s, %s, %s, %s, NOW())
         """,
-        (sensor_id, zone_id, VINEYARD_ID, temperature, humidity, moisture),
+        (monitoring_node_id, VINEYARD_ID, temperature, humidity, moisture),
     )
 
 
