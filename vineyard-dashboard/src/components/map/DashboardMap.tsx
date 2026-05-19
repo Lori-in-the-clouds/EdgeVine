@@ -306,7 +306,7 @@ export function DashboardMap({ activeLayer, setActiveLayer, onStatsUpdate }: Das
               <div class="absolute inset-0 bg-gradient-to-tr from-black/20 to-transparent"></div>
               <span class="relative text-white font-black text-[10px] tracking-tighter shadow-sm whitespace-nowrap">${sensorName}</span>
             </div>
-            <div class="absolute -bottom-1 w-1.5 h-1.5 rounded-full shadow-[0_0_8px_${statusColor}]" style="background-color: ${statusColor}"></div>
+            <div class="absolute -bottom-1 w-1.5 h-1.5 rounded-full" style="background-color: ${statusColor}; box-shadow: 0 0 8px ${statusColor};"></div>
           </div>
         `,
         iconSize: [dynamicWidth, 32],

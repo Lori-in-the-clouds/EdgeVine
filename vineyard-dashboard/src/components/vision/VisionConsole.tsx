@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Camera, Trash2, Cpu, Beaker, CheckCircle, AlertTriangle, Layers, Grape } from 'lucide-react';
+import { Camera, Trash2, Cpu, Beaker, CheckCircle, AlertTriangle, Layers } from 'lucide-react';
 
 export function VisionConsole() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);

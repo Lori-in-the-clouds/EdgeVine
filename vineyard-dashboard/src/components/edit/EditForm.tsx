@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Maximize, Save, RefreshCw, Layers, Radio, Trash2, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { MapPin, Maximize, Save, RefreshCw, Layers, Radio, Trash2, AlertTriangle, XCircle } from 'lucide-react';
 import { point } from '@turf/helpers';
 import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { ConfigurationMap, type Sector } from '../map/ConfigurationMap';
@@ -12,7 +12,7 @@ export function EditForm() {
    const [showSaveSuccess, setShowSaveSuccess] = useState(false);
    const [showPlacementError, setShowPlacementError] = useState(false);
    const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [landArea, setLandArea] = useState('---');
+  const [, setLandArea] = useState('---');
   const [landCentroid, setLandCentroid] = useState('---');
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [selectedSectorId, setSelectedSectorId] = useState<string | null>(null);
