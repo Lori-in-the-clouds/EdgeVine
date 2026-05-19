@@ -17,6 +17,47 @@ interface Sector {
   colorTheme: { poly: string; rows: string };
 }
 
+const sensorTimestampFormatter = new Intl.DateTimeFormat('it-IT', {
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+});
+
+function parseSensorTimestamp(value: unknown): Date | null {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const timestamp = String(value);
+  const wallClockMatch = timestamp.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:T| )(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?$/
+  );
+
+  if (wallClockMatch) {
+    const [, year, month, day, hour, minute, second = '0'] = wallClockMatch;
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hour),
+      Number(minute),
+      Number(second)
+    );
+  }
+
+  const parsed = new Date(timestamp);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function formatSensorTimestamp(value: unknown): string {
+  const parsed = parseSensorTimestamp(value);
+  return parsed ? sensorTimestampFormatter.format(parsed) : 'No Capture';
+}
+
 export function DashboardMap({ activeLayer, setActiveLayer, onStatsUpdate }: DashboardMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
@@ -287,7 +328,7 @@ export function DashboardMap({ activeLayer, setActiveLayer, onStatsUpdate }: Das
         statusLabel = 'Warning';
       }
 
-      const captureTime = sensor.timestamp ? new Date(sensor.timestamp).toLocaleString('it-IT', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'No Capture';
+      const captureTime = formatSensorTimestamp(sensor.timestamp);
       const captureImage = sensor.processed_image_url || sensor.image_url || `https://images.unsplash.com/photo-1593444453965-0fcb546bcdd7?auto=format&fit=crop&w=400&q=80&sig=${sensor.id || sensor.zone_number}`;
 
       const sensorName = (sensor.zone_name || sensor.zone_number).toString();
