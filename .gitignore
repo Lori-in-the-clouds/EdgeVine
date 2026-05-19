@@ -3,6 +3,9 @@
 .idea/
 __pycache__/
 *.py[cod]
+.env
+.env.*
+!.env.example
 
 vineyard-dashboard/.idea/
 vineyard-dashboard/.astro/
