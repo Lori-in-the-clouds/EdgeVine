@@ -1,18 +1,52 @@
+# --- EDGEVINE GLOBAL GITIGNORE ---
 
+# Common system files & editor settings
 .DS_Store
-
-mqtt-server/mosquitto/log/mosquitto.log
-
-mqtt-server/mosquitto/data/mosquitto.db
-
-vineyard-dashboard/.idea/
-
 .vscode/
-
+.idea/
 .venv/
 
+# Global image & training visual files (Ignored globally, except selected charts)
 *.png
-!BoxPR_curve.png
-!confusion_matrix_normalized.png
+*.jpg
+*.jpeg
+!**/BoxPR_curve.png
+!**/confusion_matrix_normalized.png
+
+# PyTorch Model Weight Files (Prevents uploading heavy models, except best.pt)
+*.pt
+!**/best.pt
+
+# Training runs, datasets & logs
+CV/dataset_classificazione/
+runs/
+wandb/
+
+# Rules to ignore training logs/files but STICKY-TRACK only best.pt, BoxPR_curve, and confusion matrix
+CV/train_leaf_detection/*
+!CV/train_leaf_detection/BoxPR_curve.png
+!CV/train_leaf_detection/confusion_matrix_normalized.png
+!CV/train_leaf_detection/results.png
+!CV/train_leaf_detection/weights/
+!CV/train_leaf_detection/weights/best.pt
+
+CV/train_leaf_disease_classifier_nano/*
+!CV/train_leaf_disease_classifier_nano/BoxPR_curve.png
+!CV/train_leaf_disease_classifier_nano/confusion_matrix_normalized.png
+!CV/train_leaf_disease_classifier_nano/results.png
+!CV/train_leaf_disease_classifier_nano/weights/
+!CV/train_leaf_disease_classifier_nano/weights/best.pt
+
+# MQTT Broker & Server Telemetry Backend
+mqtt-server/mosquitto/log/mosquitto.log
+mqtt-server/mosquitto/data/mosquitto.db
 mqtt-server/mqtt-subscriber/__pycache__/
 *.code-workspace
+
+# Web Dashboard Frontend (Unified Rules)
+vineyard-dashboard/.next/
+vineyard-dashboard/node_modules/
+vineyard-dashboard/tsconfig.tsbuildinfo
+vineyard-dashboard/.env.local
+vineyard-dashboard/.idea/
+

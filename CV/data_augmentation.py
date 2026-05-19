@@ -261,16 +261,18 @@ def augmentation_grape_dataset(dataset_path):
     # 1. SUNLIGHT FILTER (Ottimizzato per non "bruciare" i dettagli delle macchie)
     sunlight_filter = A.Compose([
         *common_transforms,
-        # Ridotto il contrasto massimo per non nascondere le macchie chiare su foglie chiare
+        # Gestisce in modo eccellente la luminosità solare e il contrasto controllato
         A.RandomBrightnessContrast(brightness_limit=(0.05, 0.2), contrast_limit=(0.05, 0.15), p=1.0),
-        # ColorJitter più conservativo sulla tonalità (Hue) per non falsificare la malattia
-        A.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.15, hue=0.01, p=0.8),
-        # Sharpen è vitale per evidenziare i bordi delle lesioni necrotiche
+        # ColorJitter si occupa SOLO della saturazione della foglia sotto il sole e della calibrazione minima del sensore (Hue)
+        A.ColorJitter(brightness=0.0, contrast=0.0, saturation=0.15, hue=0.01, p=0.8),
+        # Sharpen evidenzia le lesioni necrotiche
         A.Sharpen(alpha=(0.2, 0.4), lightness=(0.5, 1.0), p=0.5),
-        # Aggiunto un leggero rumore per simulare sensori IoT economici
-        A.GaussNoise(var_limit=(10, 30), p=0.3)
+        # Simula il rumore del sensore IoT economico
+        A.GaussNoise(std_range=(0.04, 0.12), p=0.3)
     ], bbox_params=bbox_params)
 
+
+    '''
     # 2. SHADOW FILTER (Simula zone d'ombra dove i colori sono meno saturi)
     shadow_filter = A.Compose([
         *common_transforms,
@@ -291,13 +293,14 @@ def augmentation_grape_dataset(dataset_path):
         # GridDistortion simula la superficie non piana della foglia
         A.GridDistortion(p=0.3)
     ], bbox_params=bbox_params)
+    '''
 
-    filter_list = [sunlight_filter, shadow_filter, wind_filter]
+    filter_list = [sunlight_filter]
     dt = DataAugmentation(filter_list,dataset_path,kpt=False,bbox=True)
     dt.apply_data_augmentation()
 
 
 if __name__ == '__main__':
-    augmentation_grape_dataset('/Users/lorenzodimaio/Documents/Iot_project/CV/datasets/grape-leaf-disease_dataset')
+    augmentation_grape_dataset('/Users/lorenzodimaio/Documents/Iot_project/CV/train_new/grape-leaf-dataset')
    
 
