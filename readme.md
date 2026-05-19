@@ -22,6 +22,14 @@ psql "$DATABASE_URL" -f postgres/migrations/001_split_sensor_measurements_and_vi
 
 The migration is additive and leaves `sensor_data` in place for verification. New application reads and writes use the split tables.
 
+For local/demo data, run:
+
+```sh
+psql "$DATABASE_URL" -f postgres/seed.sql
+```
+
+The seed inserts one vineyard, five vine zones, one sensor per zone, and hourly sensor measurements from January 1, 2025 through the current hour.
+
 ## Runtime data flow
 
 Sensor telemetry is ingested directly through the serial bridge:

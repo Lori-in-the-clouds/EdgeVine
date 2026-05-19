@@ -55,11 +55,11 @@ EdgeVine/
 │       └── confusion_matrix_normalized.png
 ├── docs/
 │   └── codebase-architecture-report.md
+├── SerialBridge/
+│   ├── main.py
+│   ├── pyproject.toml
+│   └── uv.lock
 ├── lora/
-│   ├── SerialBridge/
-│   │   ├── main.py
-│   │   ├── pyproject.toml
-│   │   └── uv.lock
 │   ├── VineReceiver/
 │   │   ├── platformio.ini
 │   │   └── src/main.cpp
@@ -68,12 +68,9 @@ EdgeVine/
 │       └── src/main.cpp
 ├── postgres/
 │   ├── init.sql
+│   ├── seed.sql
 │   └── migrations/
 │       └── 001_split_sensor_measurements_and_vision.sql
-├── scratch/
-│   ├── check_db.js
-│   ├── populate_sensor_data.sql
-│   └── seed_data.py
 ├── vineyard-dashboard/
 │   ├── Dockerfile
 │   ├── package.json
@@ -146,6 +143,7 @@ Responsibilities:
 Key files:
 
 - `postgres/init.sql`: canonical schema for new local databases.
+- `postgres/seed.sql`: maintained demo seed data with hourly sensor measurements from 2025-01-01 through the current hour.
 - `postgres/migrations/001_split_sensor_measurements_and_vision.sql`: migration for existing deployments.
 
 Dependencies:
@@ -157,7 +155,7 @@ Internal relationships:
 
 - Dashboard APIs read and write these tables.
 - `SerialBridge/main.py` writes sensor measurements.
-- `scratch/` scripts can seed or inspect data manually.
+- `postgres/seed.sql` can populate local/demo environments with long-range hourly sensor data.
 
 ### `CV/`
 
@@ -193,21 +191,44 @@ Internal relationships:
 - `vineyard-dashboard/src/pages/api/vision/analyze.ts` shells out to `CV/inference.py`.
 - `vineyard-dashboard/src/pages/api/vision/save-result.ts` persists returned inference results.
 
+### `SerialBridge/`
+
+Purpose: Direct serial ingestion from the LoRa receiver into PostgreSQL.
+
+Responsibilities:
+
+- Read serial JSON emitted by `lora/VineReceiver`.
+- Resolve device ids to vineyard zones and sensors.
+- Insert telemetry into `sensor_measurements`.
+
+Key files:
+
+- `SerialBridge/main.py`
+- `SerialBridge/pyproject.toml`
+- `SerialBridge/uv.lock`
+
+Dependencies:
+
+- Python `pyserial` and `psycopg`.
+
+Internal relationships:
+
+- Firmware emits JSON with `id`, `temperature`, `humidity`, and `moisture`.
+- Serial bridge resolves device id to `vine_zone` and `sensor`, then inserts into `sensor_measurements`.
+
 ### `lora/`
 
-Purpose: Hardware firmware and direct serial ingestion.
+Purpose: Hardware firmware for vineyard telemetry transport.
 
 Responsibilities:
 
 - `VineTrasmitter/`: reads DHT22 and analog moisture sensors, emits LoRa JSON.
 - `VineReceiver/`: receives LoRa packets and prints payloads over serial.
-- `SerialBridge/`: reads serial JSON and writes telemetry directly into PostgreSQL.
 
 Key files:
 
 - `lora/VineTrasmitter/src/main.cpp`
 - `lora/VineReceiver/src/main.cpp`
-- `SerialBridge/main.py`
 - PlatformIO configs in `lora/VineTrasmitter/platformio.ini` and `lora/VineReceiver/platformio.ini`.
 
 Dependencies:
@@ -216,36 +237,10 @@ Dependencies:
 - DHT sensor library.
 - LoRa_E220.
 - ArduinoJson.
-- Python `pyserial` and `psycopg`.
 
 Internal relationships:
 
-- Firmware emits JSON with `id`, `temperature`, `humidity`, and `moisture`.
-- Serial bridge resolves device id to `vine_zone` and `sensor`, then inserts into `sensor_measurements`.
-
-### `scratch/`
-
-Purpose: Manual development and database utility scripts.
-
-Responsibilities:
-
-- Seed synthetic sensor and CV records.
-- Inspect recent CV records.
-- Provide lightweight manual database checks.
-
-Key files:
-
-- `scratch/populate_sensor_data.sql`
-- `scratch/seed_data.py`
-- `scratch/check_db.js`
-
-Dependencies:
-
-- Local PostgreSQL.
-- `pg` for `check_db.js`.
-- `psycopg` for `seed_data.py`.
-
-These scripts are not part of the production runtime.
+- `lora/VineReceiver` serial output is consumed by `SerialBridge/main.py`.
 
 ### Root Files
 
@@ -907,9 +902,7 @@ What it does:
 
 ### CLI and Manual Scripts
 
-- `scratch/seed_data.py`: inserts synthetic split-schema data.
-- `scratch/populate_sensor_data.sql`: SQL seed script.
-- `scratch/check_db.js`: prints recent CV records.
+- `postgres/seed.sql`: inserts a demo vineyard, zones, sensors, and hourly sensor measurements from 2025-01-01 through the current hour.
 
 ## 5. Dependency Graph
 
@@ -1437,7 +1430,7 @@ npm run build
 Python syntax check example:
 
 ```sh
-python -m py_compile SerialBridge/main.py CV/inference.py CV/train.py CV/data_augmentation.py scratch/seed_data.py
+python -m py_compile SerialBridge/main.py CV/inference.py CV/train.py CV/data_augmentation.py
 ```
 
 Docker config validation:
@@ -1686,9 +1679,9 @@ Earlier cleanup also removed:
 ### Intentionally Kept
 
 - CV model weights and training artifacts because runtime inference depends on weights and model maintenance may need the training metadata.
-- `scratch/` scripts because they are useful manual DB utilities.
 - LoRa firmware and SerialBridge because they are the active hardware ingestion path.
 - Database migration files because existing deployments may still need them.
+- `postgres/seed.sql` because local/demo environments need deterministic long-range sensor data.
 
 ### Risk Notes
 
