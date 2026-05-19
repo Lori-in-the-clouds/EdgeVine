@@ -1,31 +1,42 @@
-# Usa un'immagine Debian-based
+# syntax=docker/dockerfile:1.7
+FROM ghcr.io/astral-sh/uv:0.11.11 AS uv
+
 FROM node:22-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV NPM_CONFIG_AUDIT=false
+ENV NPM_CONFIG_FUND=false
+ENV UV_COMPILE_BYTECODE=1
+ENV UV_LINK_MODE=copy
 
-# 1. Installa Python e dipendenze di sistema
 RUN apt-get update && apt-get install -y \
+    --no-install-recommends \
+    ca-certificates \
     python3 \
-    python3-pip \
-    python3-venv \
     libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# 2. Crea un ambiente virtuale per l'IA (metodo più pulito per evitare PEP 668)
-RUN python3 -m venv /opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
-
-# 3. Installa le librerie IA dentro l'ambiente virtuale
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir ultralytics opencv-python-headless matplotlib numpy torch torchvision
+COPY --from=uv /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-RUN npm install --legacy-peer-deps
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
-COPY . .
+COPY CV/pyproject.toml CV/uv.lock /tmp/cv/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv /opt/venv --python python3 && \
+    cd /tmp/cv && \
+    uv sync --frozen --no-dev --active
+
+COPY vineyard-dashboard/package.json vineyard-dashboard/package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --legacy-peer-deps
+
+COPY vineyard-dashboard/ .
+
+ENV YOLO_CONFIG_DIR=/tmp
 
 EXPOSE 4321
 

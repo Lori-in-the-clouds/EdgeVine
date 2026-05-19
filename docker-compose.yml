@@ -19,7 +19,9 @@ services:
       retries: 3
 
   vineyard-dashboard:
-    build: vineyard-dashboard
+    build:
+      context: .
+      dockerfile: vineyard-dashboard/Dockerfile
     container_name: vineyard-dashboard
     environment:
       POSTGRES_HOST: postgres
@@ -39,56 +41,12 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ../vineyard-dashboard:/app
+      - ./vineyard-dashboard:/app
       - /app/node_modules
-      - ../CV:/CV
+      - ./CV:/CV
     ports:
       - "4321:4321"
     restart: unless-stopped
-
-  analytics-fetch:
-    build: ./analytics
-    container_name: analytics-fetch
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: sensori
-      POSTGRES_USER: sensore_user
-      POSTGRES_PASSWORD: sensore_password
-      VINEYARD_LATITUDE: 43.0573
-      VINEYARD_LONGITUDE: 11.4891
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./analytics/archive:/app/archive
-      - ./analytics/scripts:/app/scripts
-      - ./analytics/analysis_utils.py:/app/analysis_utils.py
-    restart: unless-stopped
-    command: ["python", "scripts/fetch_and_archive.py"]
-
-  analytics-api:
-    build: ./analytics
-    container_name: analytics-api
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: sensori
-      POSTGRES_USER: sensore_user
-      POSTGRES_PASSWORD: sensore_password
-      ANALYTICS_PORT: 5001
-      PREDICTION_INTERVAL: 14400
-    depends_on:
-      postgres:
-        condition: service_healthy
-    ports:
-      - "5001:5001"
-    volumes:
-      - ./analytics/archive:/app/archive
-      - ./analytics/scripts:/app/scripts
-      - ./analytics/analysis_utils.py:/app/analysis_utils.py
-    restart: unless-stopped
-    command: ["python", "scripts/prediction_server.py"]
 
 
 volumes:

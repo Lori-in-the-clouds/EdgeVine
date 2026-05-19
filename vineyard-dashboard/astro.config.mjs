@@ -15,8 +15,5 @@ export default defineConfig({
       external: ['pg'],
       noExternal: [/@turf\/.*/],
     },
-    optimizeDeps: {
-      include: ['@turf/turf'],
-    },
   },
 });
