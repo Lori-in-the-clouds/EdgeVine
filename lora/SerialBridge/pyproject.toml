@@ -8,3 +8,6 @@ dependencies = [
     "psycopg[binary]>=3.3.4",
     "pyserial>=3.5",
 ]
+
+[tool.uv]
+package = false
