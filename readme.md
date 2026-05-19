@@ -27,7 +27,7 @@ The migration is additive and leaves `sensor_data` in place for verification. Ne
 Sensor telemetry is ingested directly through the serial bridge:
 
 ```text
-LoRa hardware -> VineReceiver serial output -> lora/SerialBridge/main.py -> PostgreSQL
+LoRa hardware -> VineReceiver serial output -> SerialBridge/main.py -> PostgreSQL
 ```
 
 The dashboard reads current state, historical telemetry, computer-vision results, and predictions through Astro API routes. Predictions are generated on request from `sensor_measurements`; there is no separate realtime transport, analytics cache, archive worker, or prediction service.
@@ -46,7 +46,7 @@ uv sync --frozen
 Serial bridge environment:
 
 ```sh
-cd lora/SerialBridge
+cd SerialBridge
 uv sync --frozen
 ```
 

@@ -156,7 +156,7 @@ Dependencies:
 Internal relationships:
 
 - Dashboard APIs read and write these tables.
-- `lora/SerialBridge/main.py` writes sensor measurements.
+- `SerialBridge/main.py` writes sensor measurements.
 - `scratch/` scripts can seed or inspect data manually.
 
 ### `CV/`
@@ -207,7 +207,7 @@ Key files:
 
 - `lora/VineTrasmitter/src/main.cpp`
 - `lora/VineReceiver/src/main.cpp`
-- `lora/SerialBridge/main.py`
+- `SerialBridge/main.py`
 - PlatformIO configs in `lora/VineTrasmitter/platformio.ini` and `lora/VineReceiver/platformio.ini`.
 
 Dependencies:
@@ -277,10 +277,10 @@ flowchart LR
 
   UI[Astro + React dashboard] --> API[Astro API routes]
   API --> DB
-  API --> CV[CV/inference.py]
+  API --> CV[CV inference]
   CV --> API
 
-  API --> PRED[/api/predictions route-local forecast]
+  API --> PRED[Predictions route]
   PRED --> DB
 
   DB --> UI
@@ -288,7 +288,7 @@ flowchart LR
 
 Primary flows:
 
-1. Sensor readings move from LoRa hardware to the serial receiver, then to `lora/SerialBridge/main.py`, then to `sensor_measurements`.
+1. Sensor readings move from LoRa hardware to the serial receiver, then to `SerialBridge/main.py`, then to `sensor_measurements`.
 2. Dashboard pages fetch state through Astro API routes.
 3. API routes read/write PostgreSQL directly.
 4. Vision analysis uploads or file references are processed by `CV/inference.py` and saved to `computer_vision_data`.
@@ -355,7 +355,7 @@ The API layer returns JSON directly. Error handling is route-specific and genera
 
 Active background/runtime processes:
 
-- `lora/SerialBridge/main.py`: long-running serial reader that inserts measurements into Postgres.
+- `SerialBridge/main.py`: long-running serial reader that inserts measurements into Postgres.
 - Firmware loops in `VineTrasmitter` and `VineReceiver`.
 
 Removed background/runtime processes:
@@ -874,7 +874,7 @@ Runtime status:
 
 ### Serial and Firmware Modules
 
-#### `lora/SerialBridge/main.py`
+#### `SerialBridge/main.py`
 
 What it does:
 
@@ -920,13 +920,13 @@ flowchart TD
   UI[React Components]
   PAGES[Astro Pages]
   API[Astro API Routes]
-  DBLIB[src/lib/db.ts]
+  DBLIB[Database Library]
   DB[(PostgreSQL)]
-  CVAPI[/api/vision/analyze]
-  CVPY[CV/inference.py]
-  PRED[/api/predictions]
-  STATS[/api/vineyard/stats]
-  SERIAL[lora/SerialBridge/main.py]
+  CVAPI[Vision Analyze API]
+  CVPY[CV Inference]
+  PRED[Predictions API]
+  STATS[Stats API]
+  SERIAL[Serial Bridge]
   FW[LoRa Firmware]
 
   PAGES --> UI
@@ -1240,7 +1240,7 @@ Used by:
 - `/api/sensors/history`
 - `/api/vineyard/stats`
 - `/api/predictions`
-- `lora/SerialBridge/main.py`
+- `SerialBridge/main.py`
 
 #### `computer_vision_data`
 
@@ -1385,7 +1385,7 @@ Important points:
 Python projects:
 
 - `CV/pyproject.toml` and `CV/uv.lock` define the computer-vision environment.
-- `lora/SerialBridge/pyproject.toml` and `lora/SerialBridge/uv.lock` define the serial bridge environment.
+- `SerialBridge/pyproject.toml` and `SerialBridge/uv.lock` define the serial bridge environment.
 - `vineyard-dashboard/Dockerfile` creates `/opt/venv` with `uv venv` and installs locked CV dependencies with `uv sync --frozen --no-dev --active`.
 
 ### Bundlers
@@ -1437,7 +1437,7 @@ npm run build
 Python syntax check example:
 
 ```sh
-python -m py_compile lora/SerialBridge/main.py CV/inference.py CV/train.py CV/data_augmentation.py scratch/seed_data.py
+python -m py_compile SerialBridge/main.py CV/inference.py CV/train.py CV/data_augmentation.py scratch/seed_data.py
 ```
 
 Docker config validation:
@@ -1462,7 +1462,7 @@ Used by:
 
 - `lora/VineTrasmitter/src/main.cpp`
 - `lora/VineReceiver/src/main.cpp`
-- `lora/SerialBridge/main.py`
+- `SerialBridge/main.py`
 
 The application expects JSON readings with `id`, `temperature`, `humidity`, and `moisture`.
 
@@ -1568,7 +1568,7 @@ uv sync --frozen
 Set up the serial bridge:
 
 ```sh
-cd lora/SerialBridge
+cd SerialBridge
 uv sync --frozen
 uv run python main.py
 ```
@@ -1677,7 +1677,7 @@ Earlier cleanup also removed:
 ### Why Removable
 
 - The dashboard already reads current state from PostgreSQL.
-- Sensor ingestion now has a direct database path through `lora/SerialBridge/main.py`.
+- Sensor ingestion now has a direct database path through `SerialBridge/main.py`.
 - Prediction data is computed from `sensor_measurements` on request.
 - The removed analytics service only existed to maintain a derived archive and serve cached forecasts.
 - No remaining active code imports or executes the removed files.
@@ -1809,7 +1809,7 @@ Important files:
 
 - `lora/VineTrasmitter/src/main.cpp`
 - `lora/VineReceiver/src/main.cpp`
-- `lora/SerialBridge/main.py`
+- `SerialBridge/main.py`
 - `vineyard-dashboard/src/pages/api/sensors.ts`
 - `vineyard-dashboard/src/components/map/DashboardMap.tsx`
 
