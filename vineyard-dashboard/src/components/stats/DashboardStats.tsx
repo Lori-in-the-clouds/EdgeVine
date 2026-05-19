@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell
 } from 'recharts';
 import {
@@ -8,7 +8,95 @@ import {
   Droplets, Sprout, Map as MapIcon, Plus, CheckCircle, AlertTriangle, Cpu
 } from 'lucide-react';
 
+type TelemetryPoint = {
+  time: string;
+  temperature: number | null;
+  humidity: number | null;
+  moisture: number | null;
+};
+
+type LatestStats = {
+  safe: number;
+  stress: number;
+  disease: number;
+  totalWine: number;
+  totalWineMin: number;
+  totalWineMax: number;
+  confidence: number;
+  leavesAnalyzed: number;
+  temp: number | null;
+  hum: number | null;
+  moist: number | null;
+};
+
 const activeBoundCache: { [cx: number]: { lower?: number; upper?: number } } = {};
+
+function formatNumber(value: unknown, maximumFractionDigits = 1) {
+  const numeric = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return '--';
+  }
+
+  return numeric.toLocaleString(undefined, {
+    minimumFractionDigits: Number.isInteger(numeric) ? 0 : 1,
+    maximumFractionDigits
+  });
+}
+
+function formatMetric(value: unknown, unit: string) {
+  const formatted = formatNumber(value);
+  return formatted === '--' ? formatted : `${formatted}${unit}`;
+}
+
+function formatTelemetryTooltip(value: unknown, name: unknown): [string, string] {
+  const numeric = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return [String(value ?? '--'), String(name ?? '')];
+  }
+
+  const label = String(name ?? '');
+  const unit = label.includes('°C') ? '°C' : '%';
+  return [`${formatNumber(numeric)}${unit}`, label];
+}
+
+function toDate(value: unknown): Date | null {
+  const date = value instanceof Date
+    ? value
+    : new Date(typeof value === 'string' || typeof value === 'number' ? value : String(value ?? ''));
+
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function formatTimeWithPeriod(value: unknown) {
+  const date = toDate(value);
+
+  if (!date) {
+    return String(value ?? '--');
+  }
+
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    hour12: true
+  });
+}
+
+function formatDateTimeWithPeriod(value: unknown) {
+  const date = toDate(value);
+
+  if (!date) {
+    return String(value ?? '--');
+  }
+
+  return date.toLocaleString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    hour12: true
+  });
+}
 
 function ActiveBoundDot(props: any) {
   const { cx, cy, stroke, type } = props;
@@ -69,8 +157,8 @@ function ActiveExpectedDot(props: any) {
 }
 
 export function DashboardStats() {
-  const [history, setHistory] = useState<any[]>([]);
-  const [latestStats, setLatestStats] = useState<any>(null);
+  const [history, setHistory] = useState<TelemetryPoint[]>([]);
+  const [latestStats, setLatestStats] = useState<LatestStats | null>(null);
   const [imageLimit, setImageLimit] = useState(4);
   const [recentImages, setRecentImages] = useState<any[]>([]);
   const [isConfigured, setIsConfigured] = useState(true);
@@ -179,18 +267,20 @@ export function DashboardStats() {
     );
   }
 
+  const telemetryDot = history.length < 2 ? { r: 3, strokeWidth: 1 } : false;
+
   return (
     <div className="flex flex-col gap-10 pb-12 animate-in fade-in duration-700">
 
       {/* ========================================================= */}
-      {/* PART 1: REAL-TIME & HISTORICAL DATA                         */}
+      {/* PART 1: CURRENT & HISTORICAL DATA                           */}
       {/* ========================================================= */}
       <div className="flex flex-col gap-6">
         <div className="flex items-center gap-4 mb-2">
           <div className="h-10 w-3 bg-[#228B22] rounded-full"></div>
           <div>
-            <h2 className="text-3xl font-manrope font-black text-stone-800">Real-Time & Historical Data</h2>
-            <p className="text-stone-500 font-medium">Current vineyard status, telemetry, and live camera feeds</p>
+            <h2 className="text-3xl font-manrope font-black text-stone-800">Current & Historical Data</h2>
+            <p className="text-stone-500 font-medium">Current vineyard status, telemetry, and camera captures</p>
           </div>
         </div>
 
@@ -200,21 +290,21 @@ export function DashboardStats() {
             <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Thermometer className="h-8 w-8" /></div>
             <div className="flex flex-col">
               <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Temperature</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{latestStats?.temp || '--'}°C</span>
+              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.temp, '°C')}</span>
             </div>
           </div>
           <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
             <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Droplets className="h-8 w-8" /></div>
             <div className="flex flex-col">
               <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Air Humidity</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{latestStats?.hum || '--'}%</span>
+              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.hum, '%')}</span>
             </div>
           </div>
           <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
             <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Sprout className="h-8 w-8" /></div>
             <div className="flex flex-col">
               <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Soil Moisture</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{latestStats?.moist || '--'}%</span>
+              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.moist, '%')}</span>
             </div>
           </div>
         </div>
@@ -226,7 +316,7 @@ export function DashboardStats() {
               <h2 className="text-2xl font-manrope font-black text-on-surface">Telemetry History</h2>
               <p className="text-stone-400 font-inter text-sm">Long-term environmental trends analysis</p>
             </div>
-            <div className="flex items-center gap-2 bg-stone-100 rounded-2xl p-1">
+            <div className="flex w-full flex-wrap items-center gap-2 bg-stone-100 rounded-2xl p-1 md:w-auto">
               {[
                 { id: '24h', label: '24h' },
                 { id: '7d', label: '7d' },
@@ -237,7 +327,7 @@ export function DashboardStats() {
                 <button
                   key={range.id}
                   onClick={() => setTimeRange(range.id)}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${timeRange === range.id
+                  className={`min-w-[3.25rem] flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 md:flex-none md:px-4 ${timeRange === range.id
                     ? 'bg-white text-[#228B22] shadow-sm scale-105'
                     : 'text-stone-400 hover:text-stone-600'
                     }`}
@@ -247,16 +337,42 @@ export function DashboardStats() {
               ))}
             </div>
           </div>
-          <div className="h-[350px] w-full">
+          <div className="h-[380px] w-full min-w-0 sm:h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={history}>
+              <LineChart data={history} margin={{ top: 16, right: 16, bottom: 18, left: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
-                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }} dy={15} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }} dx={-15} />
-                <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', padding: '20px' }} />
-                <Line type="monotone" dataKey="temperature" name="Temp (°C)" stroke="#ef4444" strokeWidth={4} dot={false} animationDuration={2000} />
-                <Line type="monotone" dataKey="humidity" name="Humidity (%)" stroke="#228B22" strokeWidth={4} dot={false} animationDuration={2500} />
-                <Line type="monotone" dataKey="moisture" name="Moisture" stroke="#3b82f6" strokeWidth={4} dot={false} animationDuration={3000} />
+                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }} dy={15} minTickGap={22} />
+                <YAxis
+                  yAxisId="percentage"
+                  orientation="left"
+                  domain={[0, 100]}
+                  width={54}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => `${value}%`}
+                  tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }}
+                  label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft', fill: '#596372', fontSize: 11, fontWeight: 800 }}
+                />
+                <YAxis
+                  yAxisId="temperature"
+                  orientation="right"
+                  domain={['dataMin - 2', 'dataMax + 2']}
+                  width={58}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => `${value}°`}
+                  tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }}
+                  label={{ value: 'Temp (°C)', angle: 90, position: 'insideRight', fill: '#596372', fontSize: 11, fontWeight: 800 }}
+                />
+                <RechartsTooltip
+                  formatter={formatTelemetryTooltip}
+                  labelFormatter={(label) => `Time: ${label}`}
+                  contentStyle={{ borderRadius: '18px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', padding: '16px' }}
+                />
+                <Legend verticalAlign="top" align="center" iconType="line" wrapperStyle={{ paddingBottom: 16, fontSize: 12, fontWeight: 800 }} />
+                <Line yAxisId="temperature" type="monotone" dataKey="temperature" name="Temperature (°C)" stroke="#ef4444" strokeWidth={3} dot={telemetryDot} connectNulls animationDuration={2000} />
+                <Line yAxisId="percentage" type="monotone" dataKey="humidity" name="Air humidity (%)" stroke="#228B22" strokeWidth={3} dot={telemetryDot} connectNulls animationDuration={2500} />
+                <Line yAxisId="percentage" type="monotone" dataKey="moisture" name="Soil moisture (%)" stroke="#3b82f6" strokeWidth={3} dot={telemetryDot} connectNulls animationDuration={3000} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -286,7 +402,7 @@ export function DashboardStats() {
                 <div className="p-2 bg-indigo-500/10 rounded-xl"><CheckCircle className="h-6 w-6 text-indigo-500" /></div>
                 Environmental Time-Series Forecast
               </h2>
-              <p className="text-stone-400 font-inter text-sm mt-1">Prediction models actively monitoring frost and water stress risks. Updates every 4 hours.</p>
+              <p className="text-stone-400 font-inter text-sm mt-1">Database-driven forecast monitoring frost and water stress risks from recent sensor readings.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -301,7 +417,7 @@ export function DashboardStats() {
                     <AlertTriangle className="text-rose-500 mt-0.5 flex-shrink-0" size={24} />
                     <div>
                       <p className="font-bold text-rose-700">FROST WARNING: {predictions.temperature.alerts.min_value}°C</p>
-                      <p className="text-rose-600 text-[11px] mt-1 leading-relaxed">Expected drop below safe threshold starting at <span className="font-bold">{new Date(predictions.temperature.alerts.danger_start_time).toLocaleString(undefined, { weekday: 'long', hour: '2-digit', minute: '2-digit' })}</span>.</p>
+                      <p className="text-rose-600 text-[11px] mt-1 leading-relaxed">Expected drop below safe threshold starting at <span className="font-bold">{formatDateTimeWithPeriod(predictions.temperature.alerts.danger_start_time)}</span>.</p>
                     </div>
                   </div>
                 ) : (
@@ -318,9 +434,9 @@ export function DashboardStats() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={predictions.temperature.forecast}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
-                      <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={(val) => new Date(val).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
+                      <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={formatTimeWithPeriod} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dx={-10} domain={['auto', 'auto']} />
-                      <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={(val) => new Date(val).toLocaleString()} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
+                      <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={formatDateTimeWithPeriod} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
                       <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="lower" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="upper" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat" name="Expected (°C)" stroke="#ef4444" strokeWidth={4} dot={false} activeDot={<ActiveExpectedDot />} />
@@ -340,7 +456,7 @@ export function DashboardStats() {
                     <AlertTriangle className="text-amber-600 mt-0.5 flex-shrink-0" size={24} />
                     <div>
                       <p className="font-bold text-amber-800">WATER STRESS RISK: {predictions.moisture.alerts.min_value?.toFixed(2)}%</p>
-                      <p className="text-amber-700 text-[11px] mt-1 leading-relaxed">Expected drop below minimum threshold starting at <span className="font-bold">{new Date(predictions.moisture.alerts.danger_start_time).toLocaleString(undefined, { weekday: 'long', hour: '2-digit', minute: '2-digit' })}</span>.</p>
+                      <p className="text-amber-700 text-[11px] mt-1 leading-relaxed">Expected drop below minimum threshold starting at <span className="font-bold">{formatDateTimeWithPeriod(predictions.moisture.alerts.danger_start_time)}</span>.</p>
                     </div>
                   </div>
                 ) : (
@@ -357,9 +473,9 @@ export function DashboardStats() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={predictions.moisture.forecast}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
-                      <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={(val) => new Date(val).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
+                      <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={formatTimeWithPeriod} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dx={-10} domain={['auto', 'auto']} />
-                      <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={(val) => new Date(val).toLocaleString()} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
+                      <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={formatDateTimeWithPeriod} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
                       <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="lower" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="upper" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat" name="Expected (%)" stroke="#3b82f6" strokeWidth={4} dot={false} activeDot={<ActiveExpectedDot />} />
