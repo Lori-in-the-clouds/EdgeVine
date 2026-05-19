@@ -1,11 +1,12 @@
 
 .DS_Store
-
-mqtt-server/mosquitto/log/mosquitto.log
-
-mqtt-server/mosquitto/data/mosquitto.db
+.idea/
+__pycache__/
+*.py[cod]
 
 vineyard-dashboard/.idea/
+vineyard-dashboard/.astro/
+vineyard-dashboard/dist/
 
 .vscode/
 
@@ -14,5 +15,4 @@ vineyard-dashboard/.idea/
 *.png
 !BoxPR_curve.png
 !confusion_matrix_normalized.png
-mqtt-server/mqtt-subscriber/__pycache__/
 *.code-workspace
