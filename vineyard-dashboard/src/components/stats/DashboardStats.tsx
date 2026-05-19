@@ -105,8 +105,11 @@ export function DashboardStats() {
         const configRes = await fetch('/api/vineyard/config');
         const configData = await configRes.json();
 
-        if (configData.success && configData.data && configData.data.sectors && configData.data.sectors.length > 0) {
-          setIsConfigured(true);
+        if (configData.success && configData.data) {
+          const rawSectors = configData.data.sectors;
+          const parsedSectors = typeof rawSectors === 'string' ? JSON.parse(rawSectors) : rawSectors;
+          if (parsedSectors && Array.isArray(parsedSectors) && parsedSectors.length > 0) {
+            setIsConfigured(true);
 
           // Fetch Real Stats from our new Engine with dynamic range
           const statsRes = await fetch(`/api/vineyard/stats?range=${timeRange}`);
@@ -130,6 +133,9 @@ export function DashboardStats() {
               hum: d.global.hum,
               moist: d.global.moist
             });
+          }
+          } else {
+            setIsConfigured(false);
           }
         } else {
           setIsConfigured(false);

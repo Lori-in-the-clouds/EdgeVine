@@ -14,8 +14,10 @@ export function DashboardContainer() {
       try {
         const res = await fetch('/api/vineyard/config');
         const data = await res.json();
-        if (data.success && data.data?.sectors) {
-          const sectors = Array.isArray(data.data.sectors) ? data.data.sectors : [];
+        if (data.success && data.data) {
+          const rawSectors = data.data.sectors;
+          const parsedSectors = typeof rawSectors === 'string' ? JSON.parse(rawSectors) : rawSectors;
+          const sectors = Array.isArray(parsedSectors) ? parsedSectors : [];
           setSectorCount(sectors.length);
         } else {
           setSectorCount(0);

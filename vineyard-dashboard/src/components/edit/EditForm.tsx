@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Maximize, Save, RefreshCw, Layers, Radio, Trash2, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-import { point } from '@turf/helpers';
-import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
+import { MapPin, Maximize, Save, RefreshCw, Layers, Radio, Trash2, AlertTriangle, XCircle } from 'lucide-react';
 import { ConfigurationMap, type Sector } from '../map/ConfigurationMap';
-import { calculateArea, calculateCenter } from '../../lib/spatialUtils';
+import { calculateArea, calculateCenter, booleanPointInPolygon } from '../../lib/spatialUtils';
 
 export function EditForm() {
   const [isLoading, setIsLoading] = useState(true);
@@ -43,8 +41,9 @@ export function EditForm() {
           setLandCentroid(`${v.latitude}° N, ${v.longitude}° E`);
           
           if (v.sectors) {
-             setSectors(v.sectors);
-             if (v.sectors.length > 0) setSelectedSectorId(v.sectors[0].id);
+             const parsedSectors = typeof v.sectors === 'string' ? JSON.parse(v.sectors) : v.sectors;
+             setSectors(parsedSectors);
+             if (parsedSectors && parsedSectors.length > 0) setSelectedSectorId(parsedSectors[0].id);
           } else if (v.perimeter) {
             // Migrate single vineyard to first sector
             const p = typeof v.perimeter === 'string' ? JSON.parse(v.perimeter) : v.perimeter;
@@ -218,7 +217,7 @@ export function EditForm() {
               if (!isNaN(lng) && !isNaN(lat)) {
                 const sector = sectors.find(sec => {
                   if (!sec.perimeter) return false;
-                  return booleanPointInPolygon(point([lng, lat]), sec.perimeter);
+                  return booleanPointInPolygon([lng, lat], sec.perimeter);
                 });
                 if (sector) {
                   s_id = sector.name; // Salviamo il NOME (es. "Sector 1")
@@ -644,7 +643,14 @@ export function EditForm() {
                 </thead>
                 <tbody className="divide-y divide-stone-100">
                   {sentinels.length > 0 ? sentinels.map((s) => {
-                    const sector = sectors.find(sec => booleanPointInPolygon([s.longitude, s.latitude], sec.perimeter));
+                    const sector = sectors.find(sec => {
+                      try {
+                        if (!sec.perimeter || s.longitude === undefined || s.latitude === undefined) return false;
+                        return booleanPointInPolygon([Number(s.longitude), Number(s.latitude)], sec.perimeter);
+                      } catch (err) {
+                        return false;
+                      }
+                    });
                     return (
                       <SentinelRow 
                         key={s.number} 

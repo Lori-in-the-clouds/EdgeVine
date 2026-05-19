@@ -39,15 +39,15 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ../vineyard-dashboard:/app
+      - ./vineyard-dashboard:/app
       - /app/node_modules
-      - ../CV:/CV
+      - ./CV:/CV
     ports:
       - "4321:4321"
     restart: unless-stopped
 
   analytics-fetch:
-    build: ./analytics
+    build: ./mqtt-server/analytics
     container_name: analytics-fetch
     environment:
       POSTGRES_HOST: postgres
@@ -61,14 +61,14 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - ./analytics/archive:/app/archive
-      - ./analytics/scripts:/app/scripts
-      - ./analytics/analysis_utils.py:/app/analysis_utils.py
+      - ./mqtt-server/analytics/archive:/app/archive
+      - ./mqtt-server/analytics/scripts:/app/scripts
+      - ./mqtt-server/analytics/analysis_utils.py:/app/analysis_utils.py
     restart: unless-stopped
     command: ["python", "scripts/fetch_and_archive.py"]
 
   analytics-api:
-    build: ./analytics
+    build: ./mqtt-server/analytics
     container_name: analytics-api
     environment:
       POSTGRES_HOST: postgres
@@ -84,9 +84,9 @@ services:
     ports:
       - "5001:5001"
     volumes:
-      - ./analytics/archive:/app/archive
-      - ./analytics/scripts:/app/scripts
-      - ./analytics/analysis_utils.py:/app/analysis_utils.py
+      - ./mqtt-server/analytics/archive:/app/archive
+      - ./mqtt-server/analytics/scripts:/app/scripts
+      - ./mqtt-server/analytics/analysis_utils.py:/app/analysis_utils.py
     restart: unless-stopped
     command: ["python", "scripts/prediction_server.py"]
 

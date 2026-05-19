@@ -91,19 +91,24 @@ export function AlertsView() {
       try {
         const res = await fetch('/api/vineyard/config');
         const data = await res.json();
-        if (data.success && data.data && data.data.sectors && data.data.sectors.length > 0) {
-          const v = data.data;
-          const allBounds = L.latLngBounds([]);
-          v.sectors.forEach((s: any) => {
-            if (s.perimeter) {
-              const b = L.geoJSON(s.perimeter).getBounds();
-              if (b.isValid()) allBounds.extend(b);
+        if (data.success && data.data) {
+          const rawSectors = data.data.sectors;
+          const parsedSectors = typeof rawSectors === 'string' ? JSON.parse(rawSectors) : rawSectors;
+          if (parsedSectors && Array.isArray(parsedSectors) && parsedSectors.length > 0) {
+            const allBounds = L.latLngBounds([]);
+            parsedSectors.forEach((s: any) => {
+              if (s.perimeter) {
+                const b = L.geoJSON(s.perimeter).getBounds();
+                if (b.isValid()) allBounds.extend(b);
+              }
+            });
+            if (allBounds.isValid()) {
+              const center = allBounds.getCenter();
+              setVineyardPos([center.lat, center.lng]);
+              setIsConfigured(true);
+            } else {
+              setIsConfigured(false);
             }
-          });
-          if (allBounds.isValid()) {
-            const center = allBounds.getCenter();
-            setVineyardPos([center.lat, center.lng]);
-            setIsConfigured(true);
           } else {
             setIsConfigured(false);
           }

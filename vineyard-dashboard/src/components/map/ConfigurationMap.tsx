@@ -3,14 +3,13 @@ import {
   calculateCenter, 
   rotateLine, 
   getDistance, 
-  clipLineToPolygon 
+  clipLineToPolygon,
+  booleanPointInPolygon
 } from '../../lib/spatialUtils';
 import L from 'leaflet';
 import { Search, Plus, Minus, MousePointer2, Hexagon, Square, MapPin, Trash2, Pencil, Layers, Lock, Unlock } from 'lucide-react';
 import '@geoman-io/leaflet-geoman-free';
 import '@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css';
-import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
-import { point } from '@turf/helpers';
 
 interface Sentinel {
   number: number;
@@ -544,7 +543,7 @@ export function ConfigurationMap({
             // Verifica immediata al posizionamento
             const pos = layer.getLatLng();
             const isInside = sectorsRef.current.some(s => {
-              try { return booleanPointInPolygon(point([pos.lng, pos.lat]), s.perimeter); } catch { return false; }
+              try { return booleanPointInPolygon([pos.lng, pos.lat], s.perimeter); } catch { return false; }
             });
 
             if (!isInside) {
@@ -674,7 +673,7 @@ export function ConfigurationMap({
         // Verifica se è dentro un settore
         const isInside = sectorsRef.current.some(s => {
           try {
-            return booleanPointInPolygon(point([pos.lng, pos.lat]), s.perimeter);
+            return booleanPointInPolygon([pos.lng, pos.lat], s.perimeter);
           } catch { return false; }
         });
 

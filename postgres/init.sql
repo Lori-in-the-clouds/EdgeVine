@@ -4,7 +4,18 @@ CREATE TABLE IF NOT EXISTS vineyard (
     owner VARCHAR(255) NOT NULL,
     altitude FLOAT NOT NULL,
     latitude FLOAT NOT NULL,
-    longitude FLOAT NOT NULL
+    longitude FLOAT NOT NULL,
+    name_vineyard VARCHAR(255),
+    email VARCHAR(255),
+    area VARCHAR(255),
+    sectors TEXT,
+    total_row_meters INTEGER,
+    total_rows_count INTEGER,
+    sectors_count INTEGER,
+    sector_names TEXT,
+    province VARCHAR(255),
+    region VARCHAR(255),
+    address VARCHAR(255)
 );
 
 CREATE TABLE IF NOT EXISTS vine_zone (
@@ -31,6 +42,8 @@ CREATE TABLE IF NOT EXISTS sensor_data (
     grape_count INTEGER,
     health_status TEXT,
     estimated_liters FLOAT,
+    estimated_liters_min FLOAT,
+    estimated_liters_max FLOAT,
     processed_image_url TEXT,
     leaf_healthy_count INTEGER DEFAULT 0,
     leaf_stress_count INTEGER DEFAULT 0,
@@ -38,9 +51,18 @@ CREATE TABLE IF NOT EXISTS sensor_data (
     FOREIGN KEY (sensor_id) REFERENCES vine_zone(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS app_settings (
+    key VARCHAR(50) PRIMARY KEY,
+    value JSONB NOT NULL
+);
+
 -- SEED DATA PER LA PRESENTAZIONE (EdgeVine)
 INSERT INTO vineyard (name, owner, altitude, latitude, longitude) 
 VALUES ('Vineyard Toscana', 'EdgeVine', 200, 43.0573, 11.4891)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO app_settings (key, value)
+VALUES ('vision', '{"depth_uncertainty_pct": 10}')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO vine_zone (number, vineyard_id, external_id) VALUES 

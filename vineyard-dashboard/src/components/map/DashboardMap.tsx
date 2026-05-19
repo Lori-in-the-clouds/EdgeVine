@@ -108,13 +108,14 @@ export function DashboardMap({ activeLayer, setActiveLayer, onStatsUpdate }: Das
           totalArea = v.area || '---';
 
           // Read sectors (new multi-sector format)
-          if (v.sectors && Array.isArray(v.sectors) && v.sectors.length > 0) {
-            setSectors(v.sectors);
+          const parsedSectors = typeof v.sectors === 'string' ? JSON.parse(v.sectors) : v.sectors;
+          if (parsedSectors && Array.isArray(parsedSectors) && parsedSectors.length > 0) {
+            setSectors(parsedSectors);
 
             // Fit map to all sectors
             if (mapInstanceRef.current) {
               const allBounds = L.latLngBounds([]);
-              v.sectors.forEach((s: any) => {
+              parsedSectors.forEach((s: any) => {
                 if (s.perimeter) {
                   const b = L.geoJSON(s.perimeter).getBounds();
                   if (b.isValid()) allBounds.extend(b);

@@ -38,7 +38,7 @@ export const GET: APIRoute = async () => {
         const localPath = `/captures/${fileName}`;
 
         await sql(`
-          INSERT INTO sensor_data (vine_zone_id, temperature, humidity, moisture, timestamp, image_url)
+          INSERT INTO sensor_data (sensor_id, temperature, humidity, moisture, timestamp, image_url)
           VALUES ($1, $2, $3, $4, $5, $6)
         `, [zone.id, temp.toFixed(1), hum.toFixed(1), moist.toFixed(1), timestamp, localPath]);
       }

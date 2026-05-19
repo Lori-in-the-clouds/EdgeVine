@@ -22,7 +22,15 @@ export const POST: APIRoute = async ({ request }) => {
     const { area, centroid, sectors, zones, province, region, address, name_vineyard, owner, email } = body;
     
     const currentVineyard = await sql<any>(`SELECT id FROM vineyard LIMIT 1`);
-    const vId = currentVineyard.rows[0]?.id || 1;
+    let vId = currentVineyard.rows[0]?.id;
+    if (!vId) {
+      // Create default vineyard record if none exists to avoid foreign key errors on empty DB
+      await sql(`
+        INSERT INTO vineyard (id, name, owner, altitude, latitude, longitude, name_vineyard, area) 
+        VALUES (1, 'EdgeVine', 'Lorenzo', 200, 38.73, -122.94, 'EdgeVine Vineyard', '---')
+      `);
+      vId = 1;
+    }
 
     // --- SALVATAGGIO DA PROFILO ---
     if (name_vineyard || owner || email || (province && !sectors)) {
