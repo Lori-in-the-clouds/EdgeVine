@@ -11,7 +11,7 @@ export const POST: APIRoute = async ({ request }) => {
     }
 
     await sql(
-      `UPDATE sensor_data 
+      `UPDATE computer_vision_data
        SET 
          grape_count = $1,
          health_status = $2,

@@ -1,21 +1,12 @@
 import type { APIRoute } from 'astro';
 import { sql } from '../../../lib/db';
 
-const VINE_IMAGES = [
-  "https://images.unsplash.com/photo-1593444453965-0fcb546bcdd7?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1560493676-04071c5f467b?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1596733430284-f7437764b1a9?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1628178652012-79010ab8459f?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1584826131422-0d65b7461cc4?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1563514227147-6d2ff665a6a0?auto=format&fit=crop&w=800&q=80"
-];
-
 export const GET: APIRoute = async () => {
   try {
     console.log("🌱 SEED_START: Generating mock data...");
     
     // 1. Get zones
-    const zonesRes = await sql<any>("SELECT id, number FROM vine_zone");
+    const zonesRes = await sql<any>("SELECT id, number, vineyard_id, external_id, name FROM vine_zone");
     const zones = zonesRes.rows;
 
     if (zones.length === 0) {
@@ -26,7 +17,6 @@ export const GET: APIRoute = async () => {
     for (const zone of zones) {
       for (let i = 0; i < 12; i++) {
         const timestamp = new Date(Date.now() - i * 3600000);
-        const dateStr = timestamp.toISOString().replace(/[:.]/g, '-').slice(0, 16);
         
         const temp = 18 + Math.random() * 8;
         const hum = 45 + Math.random() * 20;
@@ -37,10 +27,23 @@ export const GET: APIRoute = async () => {
         const fileName = testImages[Math.floor(Math.random() * testImages.length)];
         const localPath = `/captures/${fileName}`;
 
+        const sensorRes = await sql<any>(`
+          INSERT INTO sensor (zone_id, external_id, name)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (zone_id, external_id) DO UPDATE SET name = COALESCE(EXCLUDED.name, sensor.name)
+          RETURNING id
+        `, [zone.id, zone.external_id || `S-${String(zone.number).padStart(2, '0')}`, zone.name || `Sensor ${zone.number}`]);
+
+        const measurementRes = await sql<any>(`
+          INSERT INTO sensor_measurements (sensor_id, zone_id, vineyard_id, temperature, humidity, moisture, timestamp)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          RETURNING id
+        `, [sensorRes.rows[0].id, zone.id, zone.vineyard_id, temp.toFixed(1), hum.toFixed(1), moist.toFixed(1), timestamp]);
+
         await sql(`
-          INSERT INTO sensor_data (vine_zone_id, temperature, humidity, moisture, timestamp, image_url)
+          INSERT INTO computer_vision_data (sensor_id, zone_id, vineyard_id, sensor_measurement_id, timestamp, image_url)
           VALUES ($1, $2, $3, $4, $5, $6)
-        `, [zone.id, temp.toFixed(1), hum.toFixed(1), moist.toFixed(1), timestamp, localPath]);
+        `, [sensorRes.rows[0].id, zone.id, zone.vineyard_id, measurementRes.rows[0].id, timestamp, localPath]);
       }
     }
 

@@ -20,7 +20,7 @@ async function check() {
         leaf_healthy_count,
         leaf_stress_count,
         leaf_disease_count 
-      FROM sensor_data 
+      FROM computer_vision_data
       WHERE image_url IS NOT NULL 
       ORDER BY timestamp DESC 
       LIMIT 10

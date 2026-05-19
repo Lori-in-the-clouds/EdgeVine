@@ -9,7 +9,8 @@ try:
         with conn.cursor() as cur:
             # 1. Clear old data
             print("Cleaning old sensor data...")
-            cur.execute("DELETE FROM sensor_data")
+            cur.execute("DELETE FROM computer_vision_data")
+            cur.execute("DELETE FROM sensor_measurements")
             
             # 2. Get active vine zones
             cur.execute("SELECT id FROM vine_zone LIMIT 5")
@@ -32,8 +33,25 @@ try:
                     hum = 40 + random.random() * 20
                     moist = 25 + random.random() * 15
                     cur.execute(
-                        "INSERT INTO sensor_data (vine_zone_id, temperature, humidity, moisture, timestamp) VALUES (%s, %s, %s, %s, %s)",
-                        (zone_id, temp, hum, moist, ts)
+                        """
+                        INSERT INTO sensor (zone_id, external_id, name)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (zone_id, external_id)
+                        DO UPDATE SET name = COALESCE(EXCLUDED.name, sensor.name)
+                        RETURNING id
+                        """,
+                        (zone_id, f"zone-{zone_id}", f"Sensor {zone_id}")
+                    )
+                    sensor_id = cur.fetchone()[0]
+                    cur.execute(
+                        """
+                        INSERT INTO sensor_measurements
+                          (sensor_id, zone_id, vineyard_id, temperature, humidity, moisture, timestamp)
+                        SELECT %s, vz.id, vz.vineyard_id, %s, %s, %s, %s
+                        FROM vine_zone vz
+                        WHERE vz.id = %s
+                        """,
+                        (sensor_id, temp, hum, moist, ts, zone_id)
                     )
 
             # 4. Insert Live Data (Latest for each zone)
@@ -45,8 +63,25 @@ try:
                     temp, hum, moist = 24.0 + random.random()*2, 50.0 + random.random()*5, 30.0 + random.random()*5
                 
                 cur.execute(
-                    "INSERT INTO sensor_data (vine_zone_id, temperature, humidity, moisture, timestamp) VALUES (%s, %s, %s, %s, %s)",
-                    (zone_id, temp, hum, moist, now)
+                    """
+                    INSERT INTO sensor (zone_id, external_id, name)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (zone_id, external_id)
+                    DO UPDATE SET name = COALESCE(EXCLUDED.name, sensor.name)
+                    RETURNING id
+                    """,
+                    (zone_id, f"zone-{zone_id}", f"Sensor {zone_id}")
+                )
+                sensor_id = cur.fetchone()[0]
+                cur.execute(
+                    """
+                    INSERT INTO sensor_measurements
+                      (sensor_id, zone_id, vineyard_id, temperature, humidity, moisture, timestamp)
+                    SELECT %s, vz.id, vz.vineyard_id, %s, %s, %s, %s
+                    FROM vine_zone vz
+                    WHERE vz.id = %s
+                    """,
+                    (sensor_id, temp, hum, moist, now, zone_id)
                 )
 
             conn.commit()
