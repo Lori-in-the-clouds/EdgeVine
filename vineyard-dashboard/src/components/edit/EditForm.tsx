@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { MapPin, Maximize, Save, RefreshCw, Layers, Radio, Trash2, AlertTriangle, XCircle } from 'lucide-react';
-import { point } from '@turf/helpers';
-import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { ConfigurationMap, type Sector } from '../map/ConfigurationMap';
 import { calculateArea, calculateCenter, booleanPointInPolygon } from '../../lib/spatialUtils';
 
