@@ -107,16 +107,20 @@ EdgeVine's non-invasive Computer Vision pipeline runs in parallel stages to diag
 EdgeVine translates 2D bounding boxes into physical liquid volume:
 
 1. **Spatial Scale Ratio ($S$)**: Converts camera dimensions into physical space based on focal length ($f$), sensor width ($S_w$), row distance ($D$), and image resolution ($I_{\text{img}}$):
+
    $$S=\frac{D\cdot S_w}{f\cdot I_{\text{img}}}$$
 
 2. **Physical Dimensions**: The physical width ($w_i$) and height ($h_i$) of the grape cluster $i$ in millimeters are derived by scaling the bounding box pixel dimensions ($W_{i,\text{px}}$ and $H_{i,\text{px}}$):
+
    $$w_i=W_{i,\text{px}}\cdot S$$
    $$h_i=H_{i,\text{px}}\cdot S$$
 
 3. **Biomass Mass Estimation**: Approximates cluster depth as 10% of its physical area. Multiplying by the biological grape density ($\rho_{\text{grape}} = 0.8\text{ g/cm}^3$) yields the estimated cluster weight in grams ($m_i$):
+
    $$m_i=(w_i\cdot h_i\cdot0.1)\cdot\rho_{\text{grape}}$$
 
 4. **Wine Yield**: The combined weight of all $N$ clusters is scaled by the chemical yield conversion efficiency ($\eta_{\text{yield}} = 0.7$) to estimate the total harvest in liters ($L$):
+
    $$L=\left(\frac{\sum_{i=1}^{N}m_i}{1000}\right)\cdot \eta_{\text{yield}}$$
 
 > **Calibration:** Fluctuations in row distance ($D$) are mitigated by dynamically calculating uncertainty ranges that is expressed in percentage in settings (default 10%) using a customizable margin.
