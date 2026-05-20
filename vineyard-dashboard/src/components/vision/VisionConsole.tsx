@@ -164,16 +164,19 @@ export function VisionConsole() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const healthPrediction = result?.health_prediction || null;
+  const hasHealthAlert = Boolean(healthPrediction && healthPrediction !== 'Healthy');
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
       
       {/* Upload & Preview Section */}
-      <div className="lg:col-span-12 xl:col-span-8 flex flex-col gap-6">
+      <div className="lg:col-span-12 xl:col-span-8 flex flex-col gap-6 xl:min-h-[720px]">
         <div
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
-          className={`bg-white border-2 border-dashed rounded-[3rem] p-4 min-h-[500px] flex items-center justify-center relative overflow-hidden group transition-all hover:border-[#228B22]/30 ${
+          className={`bg-white border-2 border-dashed rounded-[3rem] p-4 min-h-[500px] xl:flex-1 flex items-center justify-center relative overflow-hidden group transition-all hover:border-[#228B22]/30 ${
             isDragging ? 'border-[#228B22] bg-[#228B22]/5' : 'border-stone-200'
           }`}
         >
@@ -233,7 +236,7 @@ export function VisionConsole() {
           )}
         </div>
 
-        <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm p-6 flex flex-col lg:flex-row gap-4 lg:items-end">
+        <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm p-6 flex flex-col lg:flex-row gap-4 lg:items-end xl:min-h-[152px]">
           <div className="flex-1 flex flex-col gap-3">
             <div className="flex items-center gap-3">
               <div className="w-9 h-9 rounded-xl bg-[#228B22]/10 flex items-center justify-center text-[#228B22]">
@@ -289,10 +292,10 @@ export function VisionConsole() {
       </div>
 
       {/* Control & Results Sidebar */}
-      <div className="lg:col-span-12 xl:col-span-4 flex flex-col gap-6">
+      <div className="lg:col-span-12 xl:col-span-4 flex flex-col gap-6 xl:min-h-[720px]">
         
         {/* Results Card */}
-        <div className="bg-stone-900 rounded-[3rem] p-10 flex flex-col gap-10 shadow-2xl relative overflow-hidden min-h-[500px]">
+        <div className="bg-stone-900 rounded-[3rem] p-10 flex flex-col gap-10 shadow-2xl relative overflow-hidden min-h-[500px] xl:min-h-0 xl:h-full">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-[#228B22] to-transparent"></div>
           
           <div className="space-y-2">
@@ -332,23 +335,18 @@ export function VisionConsole() {
             {/* Metric: Diseases */}
             <div className={`p-8 rounded-[2rem] border border-white/5 transition-all duration-700 delay-200 ${result ? 'bg-white/5 transform translate-y-0 opacity-100' : 'opacity-20 translate-y-4'}`}>
                <div className="flex items-center gap-3 mb-4">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${result?.diseases_detected?.length > 0 ? 'bg-amber-500/20 text-amber-500' : 'bg-[#228B22]/20 text-[#228B22]'}`}>
-                    {result?.diseases_detected?.length > 0 ? <AlertTriangle size={18} /> : <CheckCircle size={18} />}
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${hasHealthAlert ? 'bg-amber-500/20 text-amber-500' : 'bg-[#228B22]/20 text-[#228B22]'}`}>
+                    {hasHealthAlert ? <AlertTriangle size={18} /> : <CheckCircle size={18} />}
                   </div>
                   <span className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Health Status</span>
                </div>
                
-               {result?.diseases_detected?.length > 0 ? (
+               {hasHealthAlert ? (
                   <div className="space-y-3">
-                    <span className="text-xl font-black text-amber-500 tracking-tight">Pathogens Detected</span>
-                    <div className="flex flex-wrap gap-2">
-                      {result.diseases_detected.map((d: string) => (
-                        <span key={d} className="px-3 py-1 bg-amber-500/10 border border-amber-500/20 rounded-full text-[9px] font-black text-amber-500 uppercase tracking-widest">{d}</span>
-                      ))}
-                    </div>
+                    <span className="text-xl font-black text-amber-500 tracking-tight">{healthPrediction}</span>
                   </div>
                ) : (
-                  <span className="text-xl font-black text-white tracking-tight">{result ? 'No diseases found' : 'Ready to scan'}</span>
+                  <span className="text-xl font-black text-white tracking-tight">{result ? 'Healthy' : 'Ready to scan'}</span>
                )}
             </div>
 
