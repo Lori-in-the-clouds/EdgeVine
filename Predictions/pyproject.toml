@@ -1,0 +1,14 @@
+[project]
+name = "edgevine-predictions"
+version = "0.1.0"
+description = "Forecasting runtime for EdgeVine temperature and soil moisture predictions."
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "pandas",
+    "prophet",
+    "psycopg[binary]",
+]
+
+[tool.uv]
+package = false

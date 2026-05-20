@@ -30,11 +30,17 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     cd /tmp/cv && \
     uv sync --frozen --no-dev --active
 
+COPY Predictions/pyproject.toml Predictions/uv.lock /tmp/predictions/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    cd /tmp/predictions && \
+    uv sync --frozen --no-dev --active
+
 COPY vineyard-dashboard/package.json vineyard-dashboard/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \
     npm ci --legacy-peer-deps
 
 COPY vineyard-dashboard/ .
+COPY Predictions/ /Predictions/
 
 ENV YOLO_CONFIG_DIR=/tmp
 

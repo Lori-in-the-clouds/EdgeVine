@@ -44,6 +44,7 @@ services:
       - ./vineyard-dashboard:/app
       - /app/node_modules
       - ./CV:/CV
+      - ./Predictions:/Predictions
     ports:
       - "${DASHBOARD_HOST_PORT}:${DASHBOARD_PORT}"
     restart: unless-stopped
