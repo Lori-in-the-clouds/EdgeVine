@@ -12,6 +12,10 @@ __pycache__/
 vineyard-dashboard/.idea/
 vineyard-dashboard/.astro/
 vineyard-dashboard/dist/
+*.jpg
+last.pt
+train.cache
+val.cache
 
 # Rules to ignore training logs/files but STICKY-TRACK only best.pt, BoxPR_curve, and confusion matrix
 CV/train_leaf_detection/*
