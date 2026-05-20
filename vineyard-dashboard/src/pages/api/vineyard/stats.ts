@@ -125,8 +125,8 @@ export const GET: APIRoute = async ({ url }) => {
           cv.grape_count,
           cv.health_status,
           cv.estimated_liters,
-          COALESCE(cv.estimated_liters_min, cv.estimated_liters * $1) as estimated_liters_min,
-          COALESCE(cv.estimated_liters_max, cv.estimated_liters * $2) as estimated_liters_max,
+          cv.estimated_liters * $1 as estimated_liters_min,
+          cv.estimated_liters * $2 as estimated_liters_max,
           cv.processed_image_url
         FROM computer_vision_data cv
         LEFT JOIN monitoring_node mn ON mn.id = cv.monitoring_node_id
@@ -140,15 +140,15 @@ export const GET: APIRoute = async ({ url }) => {
     // 5. Logica Previsionale basata su AI
     const aiPrediction = await sql<any>(`
       WITH latest_ai AS (
-        SELECT DISTINCT ON (monitoring_node_id) estimated_liters, estimated_liters_min, estimated_liters_max
+        SELECT DISTINCT ON (monitoring_node_id) estimated_liters
         FROM computer_vision_data
         WHERE estimated_liters IS NOT NULL
         ORDER BY monitoring_node_id, timestamp DESC
       )
       SELECT 
         SUM(estimated_liters) as total_predicted_liters,
-        SUM(COALESCE(estimated_liters_min, estimated_liters * $1)) as total_predicted_min,
-        SUM(COALESCE(estimated_liters_max, estimated_liters * $2)) as total_predicted_max
+        SUM(estimated_liters * $1) as total_predicted_min,
+        SUM(estimated_liters * $2) as total_predicted_max
       FROM latest_ai
     `, [uFactorMin, uFactorMax]);
 
