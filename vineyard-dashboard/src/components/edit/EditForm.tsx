@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { MapPin, Maximize, Save, RefreshCw, Layers, Radio, Trash2, AlertTriangle, XCircle } from 'lucide-react';
+import { point } from '@turf/helpers';
+import booleanPointInPolygon from '@turf/boolean-point-in-polygon';
 import { ConfigurationMap, type Sector } from '../map/ConfigurationMap';
 import { calculateArea, calculateCenter, booleanPointInPolygon } from '../../lib/spatialUtils';
 
@@ -10,7 +12,7 @@ export function EditForm() {
    const [showSaveSuccess, setShowSaveSuccess] = useState(false);
    const [showPlacementError, setShowPlacementError] = useState(false);
    const [showClearConfirm, setShowClearConfirm] = useState(false);
-  const [landArea, setLandArea] = useState('---');
+  const [, setLandArea] = useState('---');
   const [landCentroid, setLandCentroid] = useState('---');
   const [sectors, setSectors] = useState<Sector[]>([]);
   const [selectedSectorId, setSelectedSectorId] = useState<string | null>(null);
@@ -209,7 +211,7 @@ export function EditForm() {
           centroid: landCentroid,
           sectors: sectors,
           zones: sentinels.map(s => {
-            let s_id = null;
+            let s_id: string | null = null;
             try {
               const lng = Number(s.longitude);
               const lat = Number(s.latitude);
@@ -220,7 +222,7 @@ export function EditForm() {
                   return booleanPointInPolygon([lng, lat], sec.perimeter);
                 });
                 if (sector) {
-                  s_id = sector.name; // Salviamo il NOME (es. "Sector 1")
+                  s_id = sector.id;
                   console.log(`Sentinel ${s.number} matched to: ${s_id}`);
                 } else {
                   console.warn(`Sentinel ${s.number} is OUTSIDE all sectors`);

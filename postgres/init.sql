@@ -5,73 +5,105 @@ CREATE TABLE IF NOT EXISTS vineyard (
     altitude FLOAT NOT NULL,
     latitude FLOAT NOT NULL,
     longitude FLOAT NOT NULL,
+    province TEXT,
+    region TEXT,
+    address TEXT,
+    email TEXT,
     name_vineyard VARCHAR(255),
-    email VARCHAR(255),
-    area VARCHAR(255),
-    sectors TEXT,
-    total_row_meters INTEGER,
-    total_rows_count INTEGER,
-    sectors_count INTEGER,
+    area TEXT DEFAULT '---',
+    total_row_meters INTEGER NOT NULL DEFAULT 0,
+    total_rows_count INTEGER NOT NULL DEFAULT 0,
+    sectors_count INTEGER NOT NULL DEFAULT 0,
     sector_names TEXT,
-    province VARCHAR(255),
-    region VARCHAR(255),
-    address VARCHAR(255)
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS vine_zone (
-    id SERIAL PRIMARY KEY,
-    number INTEGER NOT NULL,
+CREATE TABLE IF NOT EXISTS vineyard_sector (
+    id TEXT PRIMARY KEY,
     vineyard_id INTEGER NOT NULL,
-    name VARCHAR(255),
-    external_id VARCHAR(50),
-    latitude FLOAT,
-    longitude FLOAT,
-    sector_id VARCHAR(100),
-    UNIQUE (vineyard_id, number),
+    name VARCHAR(255) NOT NULL,
+    perimeter JSONB NOT NULL,
+    rows JSONB NOT NULL DEFAULT '[]'::jsonb,
+    row_orientation FLOAT NOT NULL DEFAULT 0,
+    row_spacing FLOAT NOT NULL DEFAULT 2,
+    target_row_count INTEGER,
+    show_rows BOOLEAN NOT NULL DEFAULT TRUE,
+    color_theme JSONB NOT NULL DEFAULT '{"poly":"#228B22","rows":"#FFD700"}'::jsonb,
+    display_order INTEGER NOT NULL DEFAULT 0,
+    area_square_meters FLOAT NOT NULL DEFAULT 0,
+    total_row_meters FLOAT NOT NULL DEFAULT 0,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (vineyard_id, name),
     FOREIGN KEY (vineyard_id) REFERENCES vineyard(id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS sensor_data (
+CREATE TABLE IF NOT EXISTS monitoring_node (
     id SERIAL PRIMARY KEY,
-    sensor_id INTEGER NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
+    vineyard_id INTEGER NOT NULL,
+    sector_id TEXT,
+    number INTEGER NOT NULL,
+    external_id VARCHAR(100) NOT NULL,
+    name VARCHAR(255),
+    latitude FLOAT,
+    longitude FLOAT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (vineyard_id, number),
+    UNIQUE (vineyard_id, external_id),
+    FOREIGN KEY (vineyard_id) REFERENCES vineyard(id) ON DELETE CASCADE,
+    FOREIGN KEY (sector_id) REFERENCES vineyard_sector(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS sensor_measurements (
+    id SERIAL PRIMARY KEY,
+    monitoring_node_id INTEGER NOT NULL,
+    vineyard_id INTEGER NOT NULL,
     temperature FLOAT NOT NULL,
     humidity FLOAT NOT NULL,
     moisture FLOAT NOT NULL,
-    image_url TEXT,
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (monitoring_node_id) REFERENCES monitoring_node(id) ON DELETE CASCADE,
+    FOREIGN KEY (vineyard_id) REFERENCES vineyard(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_vineyard_sector_vineyard ON vineyard_sector(vineyard_id);
+CREATE INDEX IF NOT EXISTS idx_monitoring_node_vineyard ON monitoring_node(vineyard_id);
+CREATE INDEX IF NOT EXISTS idx_monitoring_node_sector ON monitoring_node(sector_id);
+CREATE INDEX IF NOT EXISTS idx_sensor_measurements_node_time ON sensor_measurements(monitoring_node_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_sensor_measurements_vineyard_time ON sensor_measurements(vineyard_id, timestamp DESC);
+
+CREATE TABLE IF NOT EXISTS computer_vision_data (
+    id SERIAL PRIMARY KEY,
+    monitoring_node_id INTEGER,
+    vineyard_id INTEGER NOT NULL,
+    sensor_measurement_id INTEGER,
+    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    image_url TEXT NOT NULL,
+    processed_image_url TEXT,
     grape_count INTEGER,
     health_status TEXT,
     estimated_liters FLOAT,
     estimated_liters_min FLOAT,
     estimated_liters_max FLOAT,
-    processed_image_url TEXT,
-    leaf_healthy_count INTEGER DEFAULT 0,
-    leaf_stress_count INTEGER DEFAULT 0,
-    leaf_disease_count INTEGER DEFAULT 0,
-    FOREIGN KEY (sensor_id) REFERENCES vine_zone(id) ON DELETE CASCADE
+    leaf_healthy_count INTEGER NOT NULL DEFAULT 0,
+    leaf_stress_count INTEGER NOT NULL DEFAULT 0,
+    leaf_disease_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (monitoring_node_id) REFERENCES monitoring_node(id) ON DELETE SET NULL,
+    FOREIGN KEY (vineyard_id) REFERENCES vineyard(id) ON DELETE CASCADE,
+    FOREIGN KEY (sensor_measurement_id) REFERENCES sensor_measurements(id) ON DELETE SET NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_computer_vision_node_time ON computer_vision_data(monitoring_node_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_computer_vision_vineyard_time ON computer_vision_data(vineyard_id, timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_computer_vision_image ON computer_vision_data(image_url);
 
 CREATE TABLE IF NOT EXISTS app_settings (
-    key VARCHAR(50) PRIMARY KEY,
-    value JSONB NOT NULL
+    key TEXT PRIMARY KEY,
+    value JSONB NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- SEED DATA PER LA PRESENTAZIONE (EdgeVine)
-INSERT INTO vineyard (name, owner, altitude, latitude, longitude) 
-VALUES ('Vineyard Toscana', 'EdgeVine', 200, 43.0573, 11.4891)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO app_settings (key, value)
-VALUES ('vision', '{"depth_uncertainty_pct": 10}')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO vine_zone (number, vineyard_id, external_id) VALUES 
-(1, 1, 'S-01'), (2, 1, 'S-02'), (3, 1, 'S-03'), (4, 1, 'S-04'), (5, 1, 'S-05')
-ON CONFLICT DO NOTHING;
-
-INSERT INTO sensor_data (sensor_id, timestamp, temperature, humidity, moisture) VALUES
-(1, NOW() - INTERVAL '10 minutes', 24.5, 55.0, 35.5), 
-(2, NOW() - INTERVAL '5 minutes', 26.1, 45.0, 22.0),  
-(3, NOW() - INTERVAL '2 minutes', 27.5, 40.0, 15.5),  
-(4, NOW() - INTERVAL '30 seconds', 23.0, 60.0, 40.0), 
-(5, NOW() - INTERVAL '1 minute', 28.0, 38.0, 18.0);

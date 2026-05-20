@@ -6,6 +6,7 @@ export function DashboardContainer() {
   const [stats, setStats] = useState({ area: '---', count: 0, lat: 43.4633, lng: 11.3126 });
   const [weather, setWeather] = useState<{ temp: number | null, hum: number | null }>({ temp: null, hum: null });
   const [sectorCount, setSectorCount] = useState(0);
+  const [region, setRegion] = useState('');
   const [activeLayer, setActiveLayer] = useState<'none' | 'precipitation' | 'temperature' | 'wind'>('none');
 
   useEffect(() => {
@@ -15,14 +16,17 @@ export function DashboardContainer() {
         const res = await fetch('/api/vineyard/config');
         const data = await res.json();
         if (data.success && data.data) {
-          const rawSectors = data.data.sectors;
-          const parsedSectors = typeof rawSectors === 'string' ? JSON.parse(rawSectors) : rawSectors;
-          const sectors = Array.isArray(parsedSectors) ? parsedSectors : [];
+          const sectors = Array.isArray(data.data.sectors) ? data.data.sectors : [];
           setSectorCount(sectors.length);
+          setRegion(data.data.region || '');
         } else {
           setSectorCount(0);
+          setRegion('');
         }
-      } catch (_) { setSectorCount(0); }
+      } catch (_) {
+        setSectorCount(0);
+        setRegion('');
+      }
     };
     fetchSectorCount();
   }, []);
@@ -62,7 +66,7 @@ export function DashboardContainer() {
             Sentinel <span className="text-[#228B22]/90">Vineyard</span>
           </h2>
           <p className="text-white/40 font-manrope text-[8px] uppercase font-black tracking-[0.4em] mt-1 opacity-80">
-            Satellite Telemetry • Tuscany
+            {region ? `Satellite Telemetry • ${region}` : 'Satellite Telemetry'}
           </p>
 
           <div className="h-px bg-white/5 my-4"></div>

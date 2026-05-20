@@ -36,8 +36,8 @@ export const POST: APIRoute = async ({ request }) => {
     const value = JSON.stringify({ depth_uncertainty_pct });
     
     await sql(
-      `INSERT INTO app_settings (key, value) VALUES ('vision', $1) 
-       ON CONFLICT (key) DO UPDATE SET value = $1`,
+      `INSERT INTO app_settings (key, value) VALUES ('vision', $1::jsonb)
+       ON CONFLICT (key) DO UPDATE SET value = $1::jsonb, updated_at = CURRENT_TIMESTAMP`,
       [value]
     );
 

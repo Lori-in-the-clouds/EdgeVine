@@ -1,27 +1,101 @@
-import React, { useState, useRef } from 'react';
-import { Camera, Trash2, Cpu, Beaker, CheckCircle, AlertTriangle, Layers, Grape } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Camera, Trash2, Cpu, Beaker, CheckCircle, AlertTriangle, Layers, Radio, Save } from 'lucide-react';
+
+type MonitoringNodeOption = {
+  monitoring_node_id: number;
+  zone_number: number;
+  zone_name?: string | null;
+  external_id?: string | null;
+};
 
 export function VisionConsole() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [monitoringNodes, setMonitoringNodes] = useState<MonitoringNodeOption[]>([]);
+  const [selectedMonitoringNodeId, setSelectedMonitoringNodeId] = useState<number | null>(null);
+  const [savedRecordId, setSavedRecordId] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const loadMonitoringNodes = async () => {
+      try {
+        const response = await fetch('/api/sensors');
+        const data = await response.json();
+
+        if (data.success && Array.isArray(data.data)) {
+          const nodes = data.data.map((node: any) => ({
+            monitoring_node_id: Number(node.monitoring_node_id),
+            zone_number: Number(node.zone_number),
+            zone_name: node.zone_name,
+            external_id: node.external_id
+          })).filter((node: MonitoringNodeOption) => Number.isFinite(node.monitoring_node_id));
+
+          setMonitoringNodes(nodes);
+          if (nodes.length > 0) {
+            setSelectedMonitoringNodeId((current) => current ?? nodes[0].monitoring_node_id);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load monitoring nodes:', err);
+      }
+    };
+
+    loadMonitoringNodes();
+  }, []);
+
+  const selectFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setSaveError('Please select an image file.');
+      return;
+    }
+
+    setSelectedFile(file);
+    setResult(null);
+    setSavedRecordId(null);
+    setSaveError(null);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => setPreviewUrl(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      const reader = new FileReader();
-      reader.onload = (ev) => setPreviewUrl(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    }
+    if (file) selectFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget === e.target) setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) selectFile(file);
   };
 
   const runAnalysis = async () => {
     if (!selectedFile) return;
     setIsAnalyzing(true);
     setResult(null);
+    setSavedRecordId(null);
+    setSaveError(null);
 
     const formData = new FormData();
     formData.append('image', selectedFile);
@@ -44,10 +118,50 @@ export function VisionConsole() {
     }
   };
 
+  const saveResult = async () => {
+    if (!result || !selectedMonitoringNodeId) return;
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const response = await fetch('/api/vision/save-result', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          monitoring_node_id: selectedMonitoringNodeId,
+          image_url: result.original_image,
+          processed_image_url: result.processed_image_url,
+          grape_count: result.grape_count,
+          health_status: result.health_prediction,
+          estimated_liters: result.liters_estimated,
+          liters_min: result.liters_min,
+          liters_max: result.liters_max,
+          leaf_healthy_count: result.leaf_healthy_count ?? 0,
+          leaf_stress_count: result.leaf_stress_count ?? 0,
+          leaf_disease_count: result.leaf_disease_count ?? 0
+        })
+      });
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to save analysis');
+      }
+
+      setSavedRecordId(Number(data.id));
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to save analysis');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const reset = () => {
     setSelectedFile(null);
     setPreviewUrl(null);
     setResult(null);
+    setSavedRecordId(null);
+    setSaveError(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -55,7 +169,14 @@ export function VisionConsole() {
       
       {/* Upload & Preview Section */}
       <div className="lg:col-span-12 xl:col-span-8 flex flex-col gap-6">
-        <div className="bg-white border-2 border-dashed border-stone-200 rounded-[3rem] p-4 min-h-[500px] flex items-center justify-center relative overflow-hidden group transition-all hover:border-[#228B22]/30">
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`bg-white border-2 border-dashed rounded-[3rem] p-4 min-h-[500px] flex items-center justify-center relative overflow-hidden group transition-all hover:border-[#228B22]/30 ${
+            isDragging ? 'border-[#228B22] bg-[#228B22]/5' : 'border-stone-200'
+          }`}
+        >
           {!previewUrl ? (
             <div 
               onClick={() => fileInputRef.current?.click()}
@@ -111,6 +232,60 @@ export function VisionConsole() {
             </div>
           )}
         </div>
+
+        <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm p-6 flex flex-col lg:flex-row gap-4 lg:items-end">
+          <div className="flex-1 flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#228B22]/10 flex items-center justify-center text-[#228B22]">
+                <Radio size={18} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Monitoring Node</p>
+                <p className="text-sm font-black text-stone-800">Assign this capture before saving</p>
+              </div>
+            </div>
+
+            <select
+              value={selectedMonitoringNodeId ?? ''}
+              onChange={(event) => {
+                setSelectedMonitoringNodeId(event.target.value ? Number(event.target.value) : null);
+                setSavedRecordId(null);
+                setSaveError(null);
+              }}
+              className="w-full h-12 rounded-2xl bg-stone-50 border border-stone-200 px-4 text-sm font-black text-stone-900 outline-none focus:border-[#228B22]"
+            >
+              {monitoringNodes.length === 0 ? (
+                <option value="">No monitoring nodes</option>
+              ) : (
+                monitoringNodes.map((node) => (
+                  <option key={node.monitoring_node_id} value={node.monitoring_node_id}>
+                    {node.zone_name || node.external_id || `Sentinel ${node.zone_number}`}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-2 lg:w-56">
+            <button
+              type="button"
+              onClick={saveResult}
+              disabled={!result || !selectedMonitoringNodeId || isSaving || savedRecordId !== null}
+              className={`h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3 ${
+                result && selectedMonitoringNodeId && savedRecordId === null
+                  ? 'bg-[#228B22] text-white hover:bg-[#1B4332] shadow-lg shadow-green-950/20'
+                  : 'bg-stone-100 text-stone-400 cursor-not-allowed'
+              }`}
+            >
+              {savedRecordId ? <CheckCircle size={16} /> : <Save size={16} />}
+              {isSaving ? 'Saving...' : savedRecordId ? 'Saved' : 'Save Analysis'}
+            </button>
+
+            {saveError && (
+              <p className="text-[10px] font-bold text-red-500 leading-relaxed">{saveError}</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Control & Results Sidebar */}
@@ -126,7 +301,6 @@ export function VisionConsole() {
           </div>
 
           <div className="flex flex-col gap-6">
-            
             {/* Metric: Liters */}
             <div className={`p-8 rounded-[2rem] border border-white/5 transition-all duration-700 ${result ? 'bg-white/5 transform translate-y-0 opacity-100' : 'opacity-20 translate-y-4'}`}>
                <div className="flex items-center gap-3 mb-4">

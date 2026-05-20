@@ -3,38 +3,40 @@ services:
     image: postgres:16
     container_name: postgres
     environment:
-      POSTGRES_USER: sensore_user
-      POSTGRES_PASSWORD: sensore_password
-      POSTGRES_DB: sensori
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_HOST_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U sensore_user -d sensori || exit 1" ]
+      test: [ "CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
 
   vineyard-dashboard:
-    build: vineyard-dashboard
+    build:
+      context: .
+      dockerfile: vineyard-dashboard/Dockerfile
     container_name: vineyard-dashboard
     environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: sensori
-      POSTGRES_USER: sensore_user
-      POSTGRES_PASSWORD: sensore_password
-      DATABASE_URL: "postgresql://sensore_user:sensore_password@postgres:5432/sensori"
-      ZONE_STALE_MINUTES: 30
-      ZONE_TEMPERATURE_MIN: 5
-      ZONE_TEMPERATURE_MAX: 35
-      ZONE_HUMIDITY_MIN: 35
-      ZONE_MOISTURE_MIN: 250
-      HOST: 0.0.0.0
-      PORT: 4321
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_URL: "postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
+      ZONE_STALE_MINUTES: ${ZONE_STALE_MINUTES}
+      ZONE_TEMPERATURE_MIN: ${ZONE_TEMPERATURE_MIN}
+      ZONE_TEMPERATURE_MAX: ${ZONE_TEMPERATURE_MAX}
+      ZONE_HUMIDITY_MIN: ${ZONE_HUMIDITY_MIN}
+      ZONE_MOISTURE_MIN: ${ZONE_MOISTURE_MIN}
+      HOST: ${DASHBOARD_HOST}
+      PORT: ${DASHBOARD_PORT}
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,53 +44,10 @@ services:
       - ./vineyard-dashboard:/app
       - /app/node_modules
       - ./CV:/CV
+      - ./Predictions:/Predictions
     ports:
-      - "4321:4321"
+      - "${DASHBOARD_HOST_PORT}:${DASHBOARD_PORT}"
     restart: unless-stopped
-
-  analytics-fetch:
-    build: ./mqtt-server/analytics
-    container_name: analytics-fetch
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: sensori
-      POSTGRES_USER: sensore_user
-      POSTGRES_PASSWORD: sensore_password
-      VINEYARD_LATITUDE: 43.0573
-      VINEYARD_LONGITUDE: 11.4891
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - ./mqtt-server/analytics/archive:/app/archive
-      - ./mqtt-server/analytics/scripts:/app/scripts
-      - ./mqtt-server/analytics/analysis_utils.py:/app/analysis_utils.py
-    restart: unless-stopped
-    command: ["python", "scripts/fetch_and_archive.py"]
-
-  analytics-api:
-    build: ./mqtt-server/analytics
-    container_name: analytics-api
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: sensori
-      POSTGRES_USER: sensore_user
-      POSTGRES_PASSWORD: sensore_password
-      ANALYTICS_PORT: 5001
-      PREDICTION_INTERVAL: 14400
-    depends_on:
-      postgres:
-        condition: service_healthy
-    ports:
-      - "5001:5001"
-    volumes:
-      - ./mqtt-server/analytics/archive:/app/archive
-      - ./mqtt-server/analytics/scripts:/app/scripts
-      - ./mqtt-server/analytics/analysis_utils.py:/app/analysis_utils.py
-    restart: unless-stopped
-    command: ["python", "scripts/prediction_server.py"]
 
 
 volumes:

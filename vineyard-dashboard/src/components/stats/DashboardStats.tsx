@@ -1,14 +1,102 @@
 import { useEffect, useState } from 'react';
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend,
   PieChart, Pie, Cell
 } from 'recharts';
 import {
   Camera, Filter, Wine, Thermometer,
-  Droplets, Sprout, Map as MapIcon, Plus, CheckCircle, AlertTriangle, Cpu
+  Droplets, Sprout, Map as MapIcon, Plus, CheckCircle, AlertTriangle
 } from 'lucide-react';
 
+type TelemetryPoint = {
+  time: string;
+  temperature: number | null;
+  humidity: number | null;
+  moisture: number | null;
+};
+
+type LatestStats = {
+  safe: number;
+  stress: number;
+  disease: number;
+  totalWine: number;
+  totalWineMin: number;
+  totalWineMax: number;
+  confidence: number;
+  leavesAnalyzed: number;
+  temp: number | null;
+  hum: number | null;
+  moist: number | null;
+};
+
 const activeBoundCache: { [cx: number]: { lower?: number; upper?: number } } = {};
+
+function formatNumber(value: unknown, maximumFractionDigits = 1) {
+  const numeric = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return '--';
+  }
+
+  return numeric.toLocaleString(undefined, {
+    minimumFractionDigits: Number.isInteger(numeric) ? 0 : 1,
+    maximumFractionDigits
+  });
+}
+
+function formatMetric(value: unknown, unit: string) {
+  const formatted = formatNumber(value);
+  return formatted === '--' ? formatted : `${formatted}${unit}`;
+}
+
+function formatTelemetryTooltip(value: unknown, name: unknown): [string, string] {
+  const numeric = typeof value === 'number' ? value : Number(value);
+
+  if (!Number.isFinite(numeric)) {
+    return [String(value ?? '--'), String(name ?? '')];
+  }
+
+  const label = String(name ?? '');
+  const unit = label.includes('°C') ? '°C' : '%';
+  return [`${formatNumber(numeric)}${unit}`, label];
+}
+
+function toDate(value: unknown): Date | null {
+  const date = value instanceof Date
+    ? value
+    : new Date(typeof value === 'string' || typeof value === 'number' ? value : String(value ?? ''));
+
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function formatTimeWithPeriod(value: unknown) {
+  const date = toDate(value);
+
+  if (!date) {
+    return String(value ?? '--');
+  }
+
+  return date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    hour12: true
+  });
+}
+
+function formatDateTimeWithPeriod(value: unknown) {
+  const date = toDate(value);
+
+  if (!date) {
+    return String(value ?? '--');
+  }
+
+  return date.toLocaleString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    hour12: true
+  });
+}
 
 function ActiveBoundDot(props: any) {
   const { cx, cy, stroke, type } = props;
@@ -69,8 +157,8 @@ function ActiveExpectedDot(props: any) {
 }
 
 export function DashboardStats() {
-  const [history, setHistory] = useState<any[]>([]);
-  const [latestStats, setLatestStats] = useState<any>(null);
+  const [history, setHistory] = useState<TelemetryPoint[]>([]);
+  const [latestStats, setLatestStats] = useState<LatestStats | null>(null);
   const [imageLimit, setImageLimit] = useState(4);
   const [recentImages, setRecentImages] = useState<any[]>([]);
   const [isConfigured, setIsConfigured] = useState(true);
@@ -185,18 +273,20 @@ export function DashboardStats() {
     );
   }
 
+  const telemetryDot = history.length < 2 ? { r: 3, strokeWidth: 1 } : false;
+
   return (
     <div className="flex flex-col gap-10 pb-12 animate-in fade-in duration-700">
 
       {/* ========================================================= */}
-      {/* PART 1: REAL-TIME & HISTORICAL DATA                         */}
+      {/* PART 1: CURRENT & HISTORICAL DATA                           */}
       {/* ========================================================= */}
       <div className="flex flex-col gap-6">
         <div className="flex items-center gap-4 mb-2">
           <div className="h-10 w-3 bg-[#228B22] rounded-full"></div>
           <div>
-            <h2 className="text-3xl font-manrope font-black text-stone-800">Real-Time & Historical Data</h2>
-            <p className="text-stone-500 font-medium">Current vineyard status, telemetry, and live camera feeds</p>
+            <h2 className="text-3xl font-manrope font-black text-stone-800">Current & Historical Data</h2>
+            <p className="text-stone-500 font-medium">Current vineyard status, telemetry, and camera captures</p>
           </div>
         </div>
 
@@ -206,21 +296,21 @@ export function DashboardStats() {
             <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Thermometer className="h-8 w-8" /></div>
             <div className="flex flex-col">
               <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Temperature</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{latestStats?.temp || '--'}°C</span>
+              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.temp, '°C')}</span>
             </div>
           </div>
           <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
             <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Droplets className="h-8 w-8" /></div>
             <div className="flex flex-col">
               <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Air Humidity</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{latestStats?.hum || '--'}%</span>
+              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.hum, '%')}</span>
             </div>
           </div>
           <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
             <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Sprout className="h-8 w-8" /></div>
             <div className="flex flex-col">
               <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Soil Moisture</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{latestStats?.moist || '--'}%</span>
+              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.moist, '%')}</span>
             </div>
           </div>
         </div>
@@ -232,7 +322,7 @@ export function DashboardStats() {
               <h2 className="text-2xl font-manrope font-black text-on-surface">Telemetry History</h2>
               <p className="text-stone-400 font-inter text-sm">Long-term environmental trends analysis</p>
             </div>
-            <div className="flex items-center gap-2 bg-stone-100 rounded-2xl p-1">
+            <div className="flex w-full flex-wrap items-center gap-2 bg-stone-100 rounded-2xl p-1 md:w-auto">
               {[
                 { id: '24h', label: '24h' },
                 { id: '7d', label: '7d' },
@@ -243,7 +333,7 @@ export function DashboardStats() {
                 <button
                   key={range.id}
                   onClick={() => setTimeRange(range.id)}
-                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${timeRange === range.id
+                  className={`min-w-[3.25rem] flex-1 px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-300 md:flex-none md:px-4 ${timeRange === range.id
                     ? 'bg-white text-[#228B22] shadow-sm scale-105'
                     : 'text-stone-400 hover:text-stone-600'
                     }`}
@@ -253,16 +343,42 @@ export function DashboardStats() {
               ))}
             </div>
           </div>
-          <div className="h-[350px] w-full">
+          <div className="h-[380px] w-full min-w-0 sm:h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={history}>
+              <LineChart data={history} margin={{ top: 16, right: 16, bottom: 18, left: 4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
-                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }} dy={15} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }} dx={-15} />
-                <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', padding: '20px' }} />
-                <Line type="monotone" dataKey="temperature" name="Temp (°C)" stroke="#ef4444" strokeWidth={4} dot={false} animationDuration={2000} />
-                <Line type="monotone" dataKey="humidity" name="Humidity (%)" stroke="#228B22" strokeWidth={4} dot={false} animationDuration={2500} />
-                <Line type="monotone" dataKey="moisture" name="Moisture" stroke="#3b82f6" strokeWidth={4} dot={false} animationDuration={3000} />
+                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }} dy={15} minTickGap={22} />
+                <YAxis
+                  yAxisId="percentage"
+                  orientation="left"
+                  domain={[0, 100]}
+                  width={54}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => `${value}%`}
+                  tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }}
+                  label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft', fill: '#596372', fontSize: 11, fontWeight: 800 }}
+                />
+                <YAxis
+                  yAxisId="temperature"
+                  orientation="right"
+                  domain={['dataMin - 2', 'dataMax + 2']}
+                  width={58}
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(value) => `${value}°`}
+                  tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }}
+                  label={{ value: 'Temp (°C)', angle: 90, position: 'insideRight', fill: '#596372', fontSize: 11, fontWeight: 800 }}
+                />
+                <RechartsTooltip
+                  formatter={formatTelemetryTooltip}
+                  labelFormatter={(label) => `Time: ${label}`}
+                  contentStyle={{ borderRadius: '18px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)', padding: '16px' }}
+                />
+                <Legend verticalAlign="top" align="center" iconType="line" wrapperStyle={{ paddingBottom: 16, fontSize: 12, fontWeight: 800 }} />
+                <Line yAxisId="temperature" type="monotone" dataKey="temperature" name="Temperature (°C)" stroke="#ef4444" strokeWidth={3} dot={telemetryDot} connectNulls animationDuration={2000} />
+                <Line yAxisId="percentage" type="monotone" dataKey="humidity" name="Air humidity (%)" stroke="#228B22" strokeWidth={3} dot={telemetryDot} connectNulls animationDuration={2500} />
+                <Line yAxisId="percentage" type="monotone" dataKey="moisture" name="Soil moisture (%)" stroke="#3b82f6" strokeWidth={3} dot={telemetryDot} connectNulls animationDuration={3000} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -292,7 +408,7 @@ export function DashboardStats() {
                 <div className="p-2 bg-indigo-500/10 rounded-xl"><CheckCircle className="h-6 w-6 text-indigo-500" /></div>
                 Environmental Time-Series Forecast
               </h2>
-              <p className="text-stone-400 font-inter text-sm mt-1">Prediction models actively monitoring frost and water stress risks. Updates every 4 hours.</p>
+              <p className="text-stone-400 font-inter text-sm mt-1">Database-driven forecast monitoring frost and water stress risks from recent sensor readings.</p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -307,7 +423,7 @@ export function DashboardStats() {
                     <AlertTriangle className="text-rose-500 mt-0.5 flex-shrink-0" size={24} />
                     <div>
                       <p className="font-bold text-rose-700">FROST WARNING: {predictions.temperature.alerts.min_value}°C</p>
-                      <p className="text-rose-600 text-[11px] mt-1 leading-relaxed">Expected drop below safe threshold starting at <span className="font-bold">{new Date(predictions.temperature.alerts.danger_start_time).toLocaleString(undefined, { weekday: 'long', hour: '2-digit', minute: '2-digit' })}</span>.</p>
+                      <p className="text-rose-600 text-[11px] mt-1 leading-relaxed">Expected drop below safe threshold starting at <span className="font-bold">{formatDateTimeWithPeriod(predictions.temperature.alerts.danger_start_time)}</span>.</p>
                     </div>
                   </div>
                 ) : (
@@ -324,9 +440,9 @@ export function DashboardStats() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={predictions.temperature.forecast}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
-                      <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={(val) => new Date(val).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
+                      <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={formatTimeWithPeriod} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dx={-10} domain={['auto', 'auto']} />
-                      <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={(val) => new Date(val).toLocaleString()} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
+                      <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={formatDateTimeWithPeriod} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
                       <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="lower" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="upper" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat" name="Expected (°C)" stroke="#ef4444" strokeWidth={4} dot={false} activeDot={<ActiveExpectedDot />} />
@@ -346,7 +462,7 @@ export function DashboardStats() {
                     <AlertTriangle className="text-amber-600 mt-0.5 flex-shrink-0" size={24} />
                     <div>
                       <p className="font-bold text-amber-800">WATER STRESS RISK: {predictions.moisture.alerts.min_value?.toFixed(2)}%</p>
-                      <p className="text-amber-700 text-[11px] mt-1 leading-relaxed">Expected drop below minimum threshold starting at <span className="font-bold">{new Date(predictions.moisture.alerts.danger_start_time).toLocaleString(undefined, { weekday: 'long', hour: '2-digit', minute: '2-digit' })}</span>.</p>
+                      <p className="text-amber-700 text-[11px] mt-1 leading-relaxed">Expected drop below minimum threshold starting at <span className="font-bold">{formatDateTimeWithPeriod(predictions.moisture.alerts.danger_start_time)}</span>.</p>
                     </div>
                   </div>
                 ) : (
@@ -363,9 +479,9 @@ export function DashboardStats() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={predictions.moisture.forecast}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
-                      <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={(val) => new Date(val).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
+                      <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={formatTimeWithPeriod} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dx={-10} domain={['auto', 'auto']} />
-                      <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={(val) => new Date(val).toLocaleString()} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
+                      <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={formatDateTimeWithPeriod} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
                       <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="lower" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="upper" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat" name="Expected (%)" stroke="#3b82f6" strokeWidth={4} dot={false} activeDot={<ActiveExpectedDot />} />
@@ -478,72 +594,16 @@ export function DashboardStats() {
 
 function VisionAnalyzedCard({ img }: { img: any }) {
   const [showModal, setShowModal] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  // Only consider already-analyzed if we have a processed image URL (bounding boxes)
-  const [result, setResult] = useState<any>(img.processed_image_url ? {
-    grape_count: img.grape_count,
-    health_prediction: img.health_status,
-    liters_estimated: img.estimated_liters,
-    processed_image_url: img.processed_image_url
-  } : null);
-  const [error, setError] = useState<string | null>(null);
-
-  const startAnalysis = async () => {
-    if (isAnalyzing || (result && result.processed_image_url)) return;
-    setIsAnalyzing(true);
-    setError(null);
-    try {
-      const formData = new FormData();
-      formData.append('imagePath', img.image_url);
-
-      const res = await fetch('/api/vision/analyze', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (data.success) {
-        setResult(data.data);
-
-        // Persist inference result to database
-        try {
-          await fetch('/api/vision/save-result', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              recordId: img.id,
-              grape_count: data.data.grape_count,
-              health_status: data.data.health_prediction,
-              estimated_liters: data.data.liters_estimated,
-              processed_image_url: data.data.processed_image_url,
-              leaf_healthy_count: data.data.leaf_healthy_count ?? 0,
-              leaf_stress_count: data.data.leaf_stress_count ?? 0,
-              leaf_disease_count: data.data.leaf_disease_count ?? 0
-            })
-          });
-        } catch (saveErr) {
-          console.warn("Failed to persist inference result:", saveErr);
-        }
-      } else {
-        setError(data.details || data.error || "Analysis failed");
-      }
-    } catch (e: any) {
-      setError(e.message);
-      console.error("Analysis Error:", e);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  // Auto-trigger inference on mount if not already analyzed
-  useEffect(() => {
-    if (!result && !isAnalyzing) {
-      startAnalysis();
-    }
-  }, []);
-
-  const processedImg = result?.processed_image_url ? `${result.processed_image_url}?t=${Date.now()}` : null;
-  const healthStatus = result ? result.health_prediction : 'Pending';
-  const grapeCount = result ? result.grape_count : '---';
+  const fallbackImage = 'https://images.unsplash.com/photo-1560493676-04071c5f467b?auto=format&fit=crop&w=800&q=80';
+  const displayImage = img.processed_image_url || img.image_url || fallbackImage;
+  const healthStatus = img.health_status || 'Not analyzed';
+  const grapeCount = img.grape_count ?? '--';
+  const liters = formatNumber(img.estimated_liters);
+  const hasAnalysis = Boolean(
+    img.processed_image_url
+    || img.health_status
+    || (img.grape_count !== null && img.grape_count !== undefined)
+  );
 
   return (
     <>
@@ -555,15 +615,15 @@ function VisionAnalyzedCard({ img }: { img: any }) {
           {img.grape_count === -1 ? (
             <div className="w-full h-full flex flex-col items-center justify-center bg-stone-900 text-stone-600 gap-3">
               <AlertTriangle size={32} className="opacity-20" />
-              <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Scan Failed / Missing</span>
+              <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Saved Without Analysis</span>
             </div>
           ) : (
             <img
-              src={processedImg || img.image_url}
+              src={displayImage}
               alt={img.sensor_name}
               className="w-full h-full object-cover transition-all duration-1000 group-hover:scale-105"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560493676-04071c5f467b?auto=format&fit=crop&w=800&q=80'; // Fallback statico elegante
+                (e.target as HTMLImageElement).src = fallbackImage;
               }}
             />
           )}
@@ -571,21 +631,11 @@ function VisionAnalyzedCard({ img }: { img: any }) {
           <div className="absolute top-4 left-4 px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
             <p className="text-[8px] font-black text-white uppercase tracking-widest">{img.sensor_name}</p>
           </div>
-          {isAnalyzing && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[1px]">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-white/20 border-t-[#228B22]"></div>
-            </div>
-          )}
           <div className="absolute bottom-4 left-4">
-            {isAnalyzing ? (
-              <span className="flex items-center gap-2 text-[9px] font-black text-stone-300 bg-stone-950/80 backdrop-blur-md px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-white/10">
-                <span className="w-2.5 h-2.5 rounded-full border-2 border-white/20 border-t-[#228B22] animate-spin"></span>
-                Inference Running
-              </span>
-            ) : result && img.grape_count !== -1 ? (
+            {hasAnalysis && img.grape_count !== -1 ? (
               <span className="flex items-center gap-2 text-[9px] font-black text-[#228B22] bg-white/95 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-emerald-500/10">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#228B22]"></span>
-                Inference Complete
+                Analysis Saved
               </span>
             ) : null}
           </div>
@@ -600,48 +650,21 @@ function VisionAnalyzedCard({ img }: { img: any }) {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 animate-in fade-in duration-300">
           <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-2xl" onClick={() => setShowModal(false)}></div>
 
-          <div className="relative w-full max-w-6xl aspect-video bg-[#0a0a0a] rounded-[3rem] overflow-hidden border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col md:flex-row shadow-2xl">
+          <div className="relative w-full max-w-6xl max-h-[90vh] bg-[#0a0a0a] rounded-[3rem] overflow-hidden border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col md:flex-row shadow-2xl">
             {/* Image Section */}
-            <div className="flex-1 relative bg-black group overflow-hidden">
+            <div className="flex-1 relative bg-black group overflow-hidden min-h-[320px]">
               <img
-                src={processedImg || img.image_url}
-                className={`w-full h-full object-contain transition-all duration-1000 ${isAnalyzing ? 'scale-95 opacity-50 blur-sm' : 'scale-100'}`}
+                src={displayImage}
+                className="w-full h-full object-contain transition-all duration-1000 scale-100"
                 alt="Enlarged analysis"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = fallbackImage;
+                }}
               />
-
-              {isAnalyzing && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-6">
-                  <div className="relative">
-                    <div className="w-24 h-24 border-2 border-[#228B22]/20 rounded-full animate-[ping_2s_infinite]"></div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Cpu className="text-[#228B22] h-10 w-10 animate-pulse" />
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <h3 className="text-white font-manrope font-black text-xl tracking-[0.2em] uppercase">Neural Scan Active</h3>
-                    <p className="text-stone-500 text-[10px] font-bold uppercase tracking-[0.4em] mt-2 animate-pulse">Running EdgeVine YOLOv8 Engine</p>
-                  </div>
-                </div>
-              )}
-
-              {error && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center">
-                  <AlertTriangle className="text-amber-500 h-16 w-16 mb-4" />
-                  <h3 className="text-white font-black text-lg uppercase tracking-widest mb-2">Analysis Failed</h3>
-                  <p className="text-stone-500 text-xs max-w-md leading-relaxed">{error}</p>
-                  <button
-                    onClick={startAnalysis}
-                    className="mt-6 px-6 py-2 bg-stone-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-stone-700 transition-colors"
-                  >
-                    Retry Analysis
-                  </button>
-                </div>
-              )}
-
-              {result && !isAnalyzing && (
+              {hasAnalysis && (
                 <div className="absolute top-8 left-8 flex gap-3">
                   <div className="bg-[#228B22] text-white px-5 py-2 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl flex items-center gap-2">
-                    <CheckCircle size={14} /> Scan Complete
+                    <CheckCircle size={14} /> Database Entry
                   </div>
                 </div>
               )}
@@ -663,30 +686,40 @@ function VisionAnalyzedCard({ img }: { img: any }) {
                   <div className="w-2 h-2 bg-[#228B22] rounded-full shadow-[0_0_10px_#228B22]"></div>
                   <span className="text-[10px] font-black text-[#228B22] uppercase tracking-[0.3em]">{img.sensor_name}</span>
                 </div>
-                <h2 className="text-3xl font-manrope font-black text-white leading-tight">AI Vision <br /><span className="text-[#228B22]">Analytics</span></h2>
-                <p className="text-stone-500 text-xs mt-4 font-medium leading-relaxed">Advanced pixel-level inspection for yield estimation and pathogen detection.</p>
+                <h2 className="text-3xl font-manrope font-black text-white leading-tight">Vision <br /><span className="text-[#228B22]">Record</span></h2>
+                <p className="text-stone-500 text-xs mt-4 font-medium leading-relaxed">Saved computer-vision data from the database.</p>
               </div>
 
               <div className="flex-1 flex flex-col gap-6">
-                {/* Metric Box 1 */}
                 <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex items-center justify-between group hover:bg-white/[0.08] transition-all">
                   <div className="flex flex-col">
                     <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-1">Grapes Detected</span>
                     <span className="text-4xl font-manrope font-black text-white">{grapeCount}</span>
                   </div>
-                  <div className="p-4 bg-[#228B22]/10 rounded-2xl text-[#228B22] group-hover:scale-110 transition-transform"><Wine size={24} /></div>
+                  <div className="p-4 bg-[#228B22]/10 rounded-2xl text-[#228B22] group-hover:scale-110 transition-transform">
+                    <Wine size={24} />
+                  </div>
                 </div>
 
-                {/* Metric Box 2 */}
                 <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex items-center justify-between group hover:bg-white/[0.08] transition-all">
                   <div className="flex flex-col">
                     <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-1">Canopy Status</span>
-                    <span className={`text-4xl font-manrope font-black ${healthStatus === 'Healthy' ? 'text-[#228B22]' : result ? 'text-amber-500' : 'text-stone-700'}`}>
+                    <span className={`text-4xl font-manrope font-black ${healthStatus === 'Healthy' ? 'text-[#228B22]' : hasAnalysis ? 'text-amber-500' : 'text-stone-700'}`}>
                       {healthStatus}
                     </span>
                   </div>
                   <div className={`p-4 rounded-2xl group-hover:scale-110 transition-transform ${healthStatus === 'Healthy' ? 'bg-[#228B22]/10 text-[#228B22]' : 'bg-amber-500/10 text-amber-500'}`}>
                     {healthStatus === 'Healthy' ? <CheckCircle size={24} /> : <AlertTriangle size={24} />}
+                  </div>
+                </div>
+
+                <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex items-center justify-between group hover:bg-white/[0.08] transition-all">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-1">Estimated Liters</span>
+                    <span className="text-4xl font-manrope font-black text-white">{liters}</span>
+                  </div>
+                  <div className="p-4 bg-[#228B22]/10 rounded-2xl text-[#228B22] group-hover:scale-110 transition-transform">
+                    <Wine size={24} />
                   </div>
                 </div>
               </div>

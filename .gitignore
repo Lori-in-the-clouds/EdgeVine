@@ -2,25 +2,16 @@
 
 # Common system files & editor settings
 .DS_Store
-.vscode/
 .idea/
-.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
 
-# Global image & training visual files (Ignored globally, except selected charts)
-*.png
-*.jpg
-*.jpeg
-!**/BoxPR_curve.png
-!**/confusion_matrix_normalized.png
-
-# PyTorch Model Weight Files (Prevents uploading heavy models, except best.pt)
-*.pt
-!**/best.pt
-
-# Training runs, datasets & logs
-CV/dataset_classificazione/
-runs/
-wandb/
+vineyard-dashboard/.idea/
+vineyard-dashboard/.astro/
+vineyard-dashboard/dist/
 
 # Rules to ignore training logs/files but STICKY-TRACK only best.pt, BoxPR_curve, and confusion matrix
 CV/train_leaf_detection/*
@@ -37,16 +28,7 @@ CV/train_leaf_disease_classifier_nano/*
 !CV/train_leaf_disease_classifier_nano/weights/
 !CV/train_leaf_disease_classifier_nano/weights/best.pt
 
-# MQTT Broker & Server Telemetry Backend
-mqtt-server/mosquitto/log/mosquitto.log
-mqtt-server/mosquitto/data/mosquitto.db
-mqtt-server/mqtt-subscriber/__pycache__/
+*.png
+!BoxPR_curve.png
+!confusion_matrix_normalized.png
 *.code-workspace
-
-# Web Dashboard Frontend (Unified Rules)
-vineyard-dashboard/.next/
-vineyard-dashboard/node_modules/
-vineyard-dashboard/tsconfig.tsbuildinfo
-vineyard-dashboard/.env.local
-vineyard-dashboard/.idea/
-

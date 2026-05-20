@@ -1,9 +1,9 @@
 ---
-import Layout from '../layouts/Layout.astro';
+import MasterLayout from '../layouts/MasterLayout.astro';
 import { VisionConsole } from '../components/vision/VisionConsole';
 ---
 
-<Layout title="AI Vision | EdgeVine">
+<MasterLayout title="AI Vision">
 	<main className="min-h-screen bg-[#FDFCFB] p-4 md:p-10 font-manrope">
 		<div className="max-w-7xl mx-auto space-y-10 py-10">
 			
@@ -35,7 +35,7 @@ import { VisionConsole } from '../components/vision/VisionConsole';
 
 		</div>
 	</main>
-</Layout>
+</MasterLayout>
 
 <style is:global>
 	@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700;800&display=swap');
