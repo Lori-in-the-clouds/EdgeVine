@@ -32,3 +32,9 @@ CV/train_leaf_disease_classifier_nano/*
 !BoxPR_curve.png
 !confusion_matrix_normalized.png
 *.code-workspace
+
+.vscode/
+
+vineyard-dashboard/node_modules/
+
+*.tsbuildinfo
