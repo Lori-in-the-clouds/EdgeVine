@@ -3,6 +3,7 @@ import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { promisify } from 'util';
+import { DEFAULT_VISION_SETTINGS, normalizeVisionSettings } from '../../../lib/visionSettings';
 
 const execFilePromise = promisify(execFile);
 
@@ -65,27 +66,36 @@ export const POST: APIRoute = async ({ request }) => {
     const pythonExecutable = process.env.CV_PYTHON ?? 'python3';
     const timeout = Number(process.env.CV_TIMEOUT_MS ?? '300000');
     
-    // Fetch uncertainty setting from db
+    // Fetch camera and uncertainty settings from db
     const { sql } = await import('../../../lib/db');
-    let uncertainty = 10;
+    let visionSettings = DEFAULT_VISION_SETTINGS;
     try {
       const setRes = await sql<any>(`SELECT value FROM app_settings WHERE key = 'vision'`);
       if (setRes.rows.length > 0) {
         const val = typeof setRes.rows[0].value === 'string' ? JSON.parse(setRes.rows[0].value) : setRes.rows[0].value;
-        if (val && typeof val.depth_uncertainty_pct === 'number') {
-          uncertainty = val.depth_uncertainty_pct;
-        }
+        visionSettings = normalizeVisionSettings(val);
       }
-    } catch(e) { console.warn("Failed to fetch settings, using default uncertainty"); }
+    } catch(e) { console.warn("Failed to fetch settings, using default vision settings"); }
 
-    console.log(`🚀 RUNNING_AI: ${fileName} using ${pythonScriptPath} with uncertainty ${uncertainty}%`);
+    console.log(`🚀 RUNNING_AI: ${fileName} using ${pythonScriptPath} with uncertainty ${visionSettings.depth_uncertainty_pct}%`);
 
     // 4. Execute Inference
     let stdout: string, stderr: string;
     try {
       const result = await execFilePromise(
         pythonExecutable,
-        [pythonScriptPath, inputPath, outputName, String(uncertainty)],
+        [
+          pythonScriptPath,
+          inputPath,
+          outputName,
+          String(visionSettings.depth_uncertainty_pct),
+          '--focal-length',
+          String(visionSettings.camera_params.focal_length),
+          '--sensor-width',
+          String(visionSettings.camera_params.sensor_width),
+          '--distance',
+          String(visionSettings.camera_params.distance)
+        ],
         {
           env: process.env,
           maxBuffer: 10 * 1024 * 1024,

@@ -3,18 +3,35 @@ import cv2
 import matplotlib.pyplot as plt
 import os
 
-camera_params = {
+DEFAULT_CAMERA_PARAMS = {
     'focal_length': 3.04,
     'sensor_width': 3.68,
     'distance': 2000
 }
+camera_params = DEFAULT_CAMERA_PARAMS.copy()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_GRAPE_PATH = os.path.join(BASE_DIR, 'train_grape_counting', 'weights', 'best.pt')
 LEAF_DISEASE_CLASSIFIER_PATH = os.path.join(BASE_DIR, 'train_leaf_disease_classifier_nano', 'weights', 'best.pt')
 
+def normalize_camera_params(camera_params=None):
+    params = DEFAULT_CAMERA_PARAMS.copy()
+    params.update(camera_params or {})
+
+    for key in ('focal_length', 'sensor_width', 'distance'):
+        try:
+            params[key] = float(params[key])
+        except (TypeError, ValueError):
+            raise ValueError(f"Camera parameter '{key}' must be numeric")
+
+        if params[key] <= 0:
+            raise ValueError(f"Camera parameter '{key}' must be greater than zero")
+
+    return params
+
+
 class VineyardAnalyst:
-    def __init__(self, model_grape_path, model_disease_path, camera_params):
+    def __init__(self, model_grape_path, model_disease_path, camera_params=None):
         """
         Analizzatore del vigneto EdgeVine.
         Implementa una pipeline a DUE STADI per l'analisi fogliare:
@@ -36,9 +53,10 @@ class VineyardAnalyst:
             self.model_leaf_classifier = YOLO('yolov8n-cls.pt')
         
         # Parametri calibrazione fotocamera
-        self.focal_length = camera_params['focal_length']
-        self.sensor_width = camera_params['sensor_width']
-        self.distance = camera_params['distance']
+        normalized_camera_params = normalize_camera_params(camera_params)
+        self.focal_length = normalized_camera_params['focal_length']
+        self.sensor_width = normalized_camera_params['sensor_width']
+        self.distance = normalized_camera_params['distance']
         
         # Parametri conversione vino
         self.wine_yield = 0.7  
@@ -239,26 +257,50 @@ class VineyardAnalyst:
         }
 
 if __name__ == '__main__':
-    import sys
+    import argparse
     import json
-    
-    # Inizializza l'analista con i percorsi predefiniti
-    analyst = VineyardAnalyst(MODEL_GRAPE_PATH, None, camera_params)
+
+    parser = argparse.ArgumentParser(description='Run EdgeVine vineyard computer vision inference.')
+    parser.add_argument('image_path', nargs='?')
+    parser.add_argument('save_name', nargs='?')
+    parser.add_argument('uncertainty_pct', nargs='?', type=float, default=10.0)
+    parser.add_argument('legacy_disease_threshold', nargs='?', type=float)
+    parser.add_argument('--disease-threshold', type=float, default=None)
+    parser.add_argument('--focal-length', type=float, default=DEFAULT_CAMERA_PARAMS['focal_length'])
+    parser.add_argument('--sensor-width', type=float, default=DEFAULT_CAMERA_PARAMS['sensor_width'])
+    parser.add_argument('--distance', type=float, default=DEFAULT_CAMERA_PARAMS['distance'])
+    args = parser.parse_args()
+
+    configured_camera_params = {
+        'focal_length': args.focal_length,
+        'sensor_width': args.sensor_width,
+        'distance': args.distance
+    }
 
     # Uso via CLI per integrazione con la Dashboard web
-    if len(sys.argv) > 2:
+    if args.image_path and args.save_name:
         try:
-            img_path = sys.argv[1]
-            out_name = sys.argv[2]
-            uncertainty = float(sys.argv[3]) if len(sys.argv) > 3 else 10.0
-            disease_thresh = float(sys.argv[4]) if len(sys.argv) > 4 else 0.95
-            result = analyst.analyze_json(img_path, out_name, depth_uncertainty_pct=uncertainty, disease_threshold=disease_thresh)
+            analyst = VineyardAnalyst(MODEL_GRAPE_PATH, None, configured_camera_params)
+            disease_thresh = (
+                args.disease_threshold
+                if args.disease_threshold is not None
+                else args.legacy_disease_threshold
+                if args.legacy_disease_threshold is not None
+                else 0.95
+            )
+            result = analyst.analyze_json(
+                args.image_path,
+                args.save_name,
+                depth_uncertainty_pct=args.uncertainty_pct,
+                disease_threshold=disease_thresh
+            )
             print(json.dumps(result))
         except Exception as e:
             print(json.dumps({"success": False, "error": str(e)}))
-            sys.exit(1)
+            raise SystemExit(1)
     else:
         # Esecuzione di test standalone locale
+        analyst = VineyardAnalyst(MODEL_GRAPE_PATH, None, configured_camera_params)
         test_path = os.path.join(BASE_DIR, 'images', 'image copy 2.png')
         if not os.path.exists(test_path):
             test_path = os.path.join(BASE_DIR, 'image.png')
@@ -271,4 +313,4 @@ if __name__ == '__main__':
             print(f"    - Stress: {analyst.last_stress_count}")
             print(f"    - Disease: {analyst.last_disease_count}")
         else:
-            print("Usage: python inference.py <image_path> <save_name> [uncertainty_pct]")
+            print("Usage: python inference.py <image_path> <save_name> [uncertainty_pct] [disease_threshold] [--focal-length mm] [--sensor-width mm] [--distance mm]")
