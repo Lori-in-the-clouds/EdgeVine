@@ -1,0 +1,30 @@
+[project]
+name = "edgevine-cv"
+version = "0.1.0"
+description = "Computer vision runtime and training dependencies for EdgeVine."
+requires-python = ">=3.11"
+dependencies = [
+    "albumentations",
+    "matplotlib",
+    "numpy",
+    "opencv-python-headless",
+    "torch",
+    "torchvision",
+    "ultralytics",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cuda", marker = "sys_platform == 'linux'" },
+]
+torchvision = [
+    { index = "pytorch-cuda", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cuda"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

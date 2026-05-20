@@ -1,0 +1,12 @@
+---
+import MasterLayout from '../layouts/MasterLayout.astro';
+import { DashboardStats } from '../components/stats/DashboardStats';
+---
+
+<MasterLayout title="Statistics">
+  <div class="max-w-6xl mx-auto">
+
+    
+    <DashboardStats client:only="react" />
+  </div>
+</MasterLayout>

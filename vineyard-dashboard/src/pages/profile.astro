@@ -1,0 +1,33 @@
+---
+import MasterLayout from '../layouts/MasterLayout.astro';
+import { ProfileForm } from '../components/profile/ProfileForm';
+---
+
+<MasterLayout title="User Profile" hideSearch={true}>
+  <!-- Main Content Area -->
+  <main class="min-h-screen">
+    <div class="px-6 py-10 max-w-7xl mx-auto">
+      <!-- Top Navigation / Back Button -->
+      <div class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div class="space-y-4">
+          <a 
+            href="/" 
+            class="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-stone-400 hover:text-[#228B22] transition-colors group mb-4"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="group-hover:-translate-x-1 transition-transform"><path d="m15 18-6-6 6-6"/></svg>
+            Back to Dashboard
+          </a>
+          <h1 class="text-5xl font-manrope font-extrabold text-stone-800 tracking-tight leading-none">
+            User <span class="text-[#228B22]">Profile</span>
+          </h1>
+          <p class="text-stone-500 font-inter font-medium opacity-80 max-w-2xl leading-relaxed">
+            Manage your personal information and account preferences to keep your EdgeVine identity updated.
+          </p>
+        </div>
+      </div>
+
+      {/* Interactive Profiling Component */}
+      <ProfileForm client:load />
+    </div>
+  </main>
+</MasterLayout>
