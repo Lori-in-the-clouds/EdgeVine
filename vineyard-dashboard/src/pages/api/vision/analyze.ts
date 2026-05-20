@@ -94,7 +94,13 @@ export const POST: APIRoute = async ({ request }) => {
           '--sensor-width',
           String(visionSettings.camera_params.sensor_width),
           '--distance',
-          String(visionSettings.camera_params.distance)
+          String(visionSettings.camera_params.distance),
+          '--grape-confidence',
+          String(visionSettings.inference_thresholds.grape_confidence),
+          '--leaf-confidence',
+          String(visionSettings.inference_thresholds.leaf_confidence),
+          '--disease-threshold',
+          String(visionSettings.inference_thresholds.disease_threshold)
         ],
         {
           env: process.env,

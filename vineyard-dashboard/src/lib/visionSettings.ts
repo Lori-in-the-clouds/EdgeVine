@@ -7,6 +7,13 @@ export type CameraParams = {
 export type VisionSettings = {
   depth_uncertainty_pct: number;
   camera_params: CameraParams;
+  inference_thresholds: InferenceThresholds;
+};
+
+export type InferenceThresholds = {
+  grape_confidence: number;
+  leaf_confidence: number;
+  disease_threshold: number;
 };
 
 export const MAX_DEPTH_UNCERTAINTY_PCT = 20;
@@ -17,9 +24,16 @@ export const DEFAULT_CAMERA_PARAMS: CameraParams = {
   distance: 2000
 };
 
+export const DEFAULT_INFERENCE_THRESHOLDS: InferenceThresholds = {
+  grape_confidence: 0.25,
+  leaf_confidence: 0.35,
+  disease_threshold: 0.95
+};
+
 export const DEFAULT_VISION_SETTINGS: VisionSettings = {
   depth_uncertainty_pct: 10,
-  camera_params: DEFAULT_CAMERA_PARAMS
+  camera_params: DEFAULT_CAMERA_PARAMS,
+  inference_thresholds: DEFAULT_INFERENCE_THRESHOLDS
 };
 
 function objectRecord(value: unknown): Record<string, unknown> {
@@ -38,10 +52,17 @@ function positiveNumberOrFallback(value: unknown, fallback: number): number {
   return numeric > 0 ? numeric : fallback;
 }
 
+function confidenceOrFallback(value: unknown, fallback: number): number {
+  const numeric = numberOrFallback(value, fallback);
+  return Math.min(1, Math.max(0, numeric));
+}
+
 export function normalizeVisionSettings(raw: unknown): VisionSettings {
   const record = objectRecord(raw);
   const cameraRecord = objectRecord(record.camera_params);
   const cameraSource = Object.keys(cameraRecord).length > 0 ? cameraRecord : record;
+  const thresholdRecord = objectRecord(record.inference_thresholds);
+  const thresholdSource = Object.keys(thresholdRecord).length > 0 ? thresholdRecord : record;
 
   const depth = numberOrFallback(
     record.depth_uncertainty_pct,
@@ -54,6 +75,11 @@ export function normalizeVisionSettings(raw: unknown): VisionSettings {
       focal_length: positiveNumberOrFallback(cameraSource.focal_length, DEFAULT_CAMERA_PARAMS.focal_length),
       sensor_width: positiveNumberOrFallback(cameraSource.sensor_width, DEFAULT_CAMERA_PARAMS.sensor_width),
       distance: positiveNumberOrFallback(cameraSource.distance, DEFAULT_CAMERA_PARAMS.distance)
+    },
+    inference_thresholds: {
+      grape_confidence: confidenceOrFallback(thresholdSource.grape_confidence, DEFAULT_INFERENCE_THRESHOLDS.grape_confidence),
+      leaf_confidence: confidenceOrFallback(thresholdSource.leaf_confidence, DEFAULT_INFERENCE_THRESHOLDS.leaf_confidence),
+      disease_threshold: confidenceOrFallback(thresholdSource.disease_threshold, DEFAULT_INFERENCE_THRESHOLDS.disease_threshold)
     }
   };
 }
@@ -62,6 +88,8 @@ export function validateVisionSettings(raw: unknown): VisionSettings {
   const record = objectRecord(raw);
   const cameraRecord = objectRecord(record.camera_params);
   const cameraSource = Object.keys(cameraRecord).length > 0 ? cameraRecord : record;
+  const thresholdRecord = objectRecord(record.inference_thresholds);
+  const thresholdSource = Object.keys(thresholdRecord).length > 0 ? thresholdRecord : record;
 
   const depth = Number(record.depth_uncertainty_pct);
   if (!Number.isFinite(depth) || depth < 0 || depth > MAX_DEPTH_UNCERTAINTY_PCT) {
@@ -84,12 +112,33 @@ export function validateVisionSettings(raw: unknown): VisionSettings {
     throw new Error('camera_params.distance must be a number greater than 0');
   }
 
+  const grapeConfidence = Number(thresholdSource.grape_confidence);
+  const leafConfidence = Number(thresholdSource.leaf_confidence);
+  const diseaseThreshold = Number(thresholdSource.disease_threshold);
+
+  if (!Number.isFinite(grapeConfidence) || grapeConfidence < 0 || grapeConfidence > 1) {
+    throw new Error('inference_thresholds.grape_confidence must be a number between 0 and 1');
+  }
+
+  if (!Number.isFinite(leafConfidence) || leafConfidence < 0 || leafConfidence > 1) {
+    throw new Error('inference_thresholds.leaf_confidence must be a number between 0 and 1');
+  }
+
+  if (!Number.isFinite(diseaseThreshold) || diseaseThreshold < 0 || diseaseThreshold > 1) {
+    throw new Error('inference_thresholds.disease_threshold must be a number between 0 and 1');
+  }
+
   return {
     depth_uncertainty_pct: depth,
     camera_params: {
       focal_length: focalLength,
       sensor_width: sensorWidth,
       distance
+    },
+    inference_thresholds: {
+      grape_confidence: grapeConfidence,
+      leaf_confidence: leafConfidence,
+      disease_threshold: diseaseThreshold
     }
   };
 }

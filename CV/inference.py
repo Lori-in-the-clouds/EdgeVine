@@ -9,6 +9,11 @@ DEFAULT_CAMERA_PARAMS = {
     'distance': 2000
 }
 camera_params = DEFAULT_CAMERA_PARAMS.copy()
+DEFAULT_INFERENCE_THRESHOLDS = {
+    'grape_confidence': 0.25,
+    'leaf_confidence': 0.35,
+    'disease_threshold': 0.95
+}
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_GRAPE_PATH = os.path.join(BASE_DIR, 'train_grape_counting', 'weights', 'best.pt')
@@ -28,6 +33,18 @@ def normalize_camera_params(camera_params=None):
             raise ValueError(f"Camera parameter '{key}' must be greater than zero")
 
     return params
+
+
+def normalize_confidence_threshold(value, name):
+    try:
+        threshold = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Inference threshold '{name}' must be numeric")
+
+    if not 0 <= threshold <= 1:
+        raise ValueError(f"Inference threshold '{name}' must be between 0 and 1")
+
+    return threshold
 
 
 class VineyardAnalyst:
@@ -77,7 +94,18 @@ class VineyardAnalyst:
         width_real_mm = (self.distance * self.sensor_width) / self.focal_length
         return width_real_mm / 1000  # Conversione in metri
 
-    def run_inference(self, image_path, save_path, imgsz=640, print_prediction=True, grape_detection=True, disease_detection=True, disease_threshold=0.95):
+    def run_inference(
+        self,
+        image_path,
+        save_path,
+        imgsz=640,
+        print_prediction=True,
+        grape_detection=True,
+        disease_detection=True,
+        grape_confidence=DEFAULT_INFERENCE_THRESHOLDS['grape_confidence'],
+        leaf_confidence=DEFAULT_INFERENCE_THRESHOLDS['leaf_confidence'],
+        disease_threshold=DEFAULT_INFERENCE_THRESHOLDS['disease_threshold']
+    ):
         """
         Esegue l'inferenza completa: rileva i grappoli e le foglie (due stadi), 
         ritaglia le foglie in memoria, le classifica, disegna le bounding box
@@ -86,6 +114,10 @@ class VineyardAnalyst:
         img_orig = cv2.imread(image_path)
         if img_orig is None:
             raise ValueError(f"Impossibile leggere l'immagine al percorso {image_path}")
+
+        grape_confidence = normalize_confidence_threshold(grape_confidence, 'grape_confidence')
+        leaf_confidence = normalize_confidence_threshold(leaf_confidence, 'leaf_confidence')
+        disease_threshold = normalize_confidence_threshold(disease_threshold, 'disease_threshold')
             
         h_orig, w_orig = img_orig.shape[:2]
         
@@ -97,13 +129,13 @@ class VineyardAnalyst:
         # 1. RILEVAMENTO GRAPPOLI
         results1 = None
         if grape_detection:
-            results1 = self.model_grape.predict(source=image_path, imgsz=imgsz, conf=0.25, verbose=False)
+            results1 = self.model_grape.predict(source=image_path, imgsz=imgsz, conf=grape_confidence, verbose=False)
             
         # 2. PIPELINE A DUE STADI PER LE FOGLIE
         results2 = None
         if disease_detection:
             # Stage 1: Rilevamento foglie (trova i contorni xyxy di ogni foglia)
-            leaf_results = self.model_leaf_detector.predict(source=img_orig, imgsz=imgsz, conf=0.35, verbose=False)
+            leaf_results = self.model_leaf_detector.predict(source=img_orig, imgsz=imgsz, conf=leaf_confidence, verbose=False)
             results2 = leaf_results
             
             # Se ci sono foglie rilevate dallo Stage 1, procediamo con il ritaglio e la classificazione Stage 2
@@ -218,9 +250,25 @@ class VineyardAnalyst:
         
         return liters_per_meter * total_row_length_m
 
-    def analyze_json(self, image_path, save_name, depth_uncertainty_pct=10.0, total_row_meters=100, disease_threshold=0.95):
+    def analyze_json(
+        self,
+        image_path,
+        save_name,
+        depth_uncertainty_pct=10.0,
+        total_row_meters=100,
+        disease_threshold=DEFAULT_INFERENCE_THRESHOLDS['disease_threshold'],
+        grape_confidence=DEFAULT_INFERENCE_THRESHOLDS['grape_confidence'],
+        leaf_confidence=DEFAULT_INFERENCE_THRESHOLDS['leaf_confidence']
+    ):
         """Metodo principale per la Dashboard: esegue l'analisi e ritorna un dizionario JSON"""
-        res_grape, res_disease = self.run_inference(image_path, save_path=save_name, print_prediction=False, disease_threshold=disease_threshold)
+        res_grape, res_disease = self.run_inference(
+            image_path,
+            save_path=save_name,
+            print_prediction=False,
+            grape_confidence=grape_confidence,
+            leaf_confidence=leaf_confidence,
+            disease_threshold=disease_threshold
+        )
         
         # Calcola i litri stimati
         liters = self.estimate_photo_liters(res_grape, 640)
@@ -266,6 +314,8 @@ if __name__ == '__main__':
     parser.add_argument('uncertainty_pct', nargs='?', type=float, default=10.0)
     parser.add_argument('legacy_disease_threshold', nargs='?', type=float)
     parser.add_argument('--disease-threshold', type=float, default=None)
+    parser.add_argument('--grape-confidence', type=float, default=DEFAULT_INFERENCE_THRESHOLDS['grape_confidence'])
+    parser.add_argument('--leaf-confidence', type=float, default=DEFAULT_INFERENCE_THRESHOLDS['leaf_confidence'])
     parser.add_argument('--focal-length', type=float, default=DEFAULT_CAMERA_PARAMS['focal_length'])
     parser.add_argument('--sensor-width', type=float, default=DEFAULT_CAMERA_PARAMS['sensor_width'])
     parser.add_argument('--distance', type=float, default=DEFAULT_CAMERA_PARAMS['distance'])
@@ -292,7 +342,9 @@ if __name__ == '__main__':
                 args.image_path,
                 args.save_name,
                 depth_uncertainty_pct=args.uncertainty_pct,
-                disease_threshold=disease_thresh
+                disease_threshold=disease_thresh,
+                grape_confidence=args.grape_confidence,
+                leaf_confidence=args.leaf_confidence
             )
             print(json.dumps(result))
         except Exception as e:
@@ -313,4 +365,4 @@ if __name__ == '__main__':
             print(f"    - Stress: {analyst.last_stress_count}")
             print(f"    - Disease: {analyst.last_disease_count}")
         else:
-            print("Usage: python inference.py <image_path> <save_name> [uncertainty_pct] [disease_threshold] [--focal-length mm] [--sensor-width mm] [--distance mm]")
+            print("Usage: python inference.py <image_path> <save_name> [uncertainty_pct] [disease_threshold] [--grape-confidence 0-1] [--leaf-confidence 0-1] [--focal-length mm] [--sensor-width mm] [--distance mm]")
