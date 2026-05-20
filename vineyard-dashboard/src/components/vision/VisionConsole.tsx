@@ -168,7 +168,16 @@ export function VisionConsole() {
   const hasHealthAlert = Boolean(healthPrediction && healthPrediction !== 'Healthy');
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
+    <div>
+      <div className="flex items-center gap-4 mb-2">
+          <div className="h-20 w-3 bg-[#228B22] rounded-full"></div>
+          <div>
+            <h2 className="text-3xl font-manrope font-black text-stone-800">AI Vision Analytics</h2>
+            <p className="text-stone-500 font-medium">Analyze field captures and persist camera-node inference results</p>
+            <p className="text-stone-500 font-medium">YOLOv8 Vineyard Special</p>
+          </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
       
       {/* Upload & Preview Section */}
       <div className="lg:col-span-12 xl:col-span-8 flex flex-col gap-6 xl:min-h-[720px]">
@@ -357,6 +366,7 @@ export function VisionConsole() {
           </div>
         </div>
 
+      </div>
       </div>
     </div>
   );
