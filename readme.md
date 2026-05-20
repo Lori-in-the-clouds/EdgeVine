@@ -1,261 +1,151 @@
-# EdgeVine 🍇
 
-**EdgeVine** is an advanced, end-to-end precision viticulture system that unites Internet of Things (IoT) telemetry, long-range LoRaWAN connectivity, and state-of-the-art AI computer vision to empower vineyard managers with real-time, actionable insights. By monitoring micro-climates, soil states, and canopy health, EdgeVine predicts crop yields and early-stage diseases—allowing growers to maximize grape quality, optimize water resources, and secure harvest volume.
-
-<!-- 📸 INSERT: Project Overview Banner / Dashboard Screenshot -->
-
----
+<h1>EdgeVine 🍇</h1>
+EdgeVine is an advanced precision viticulture platform that seamlessly integrates IoT telemetry, predictive analytics, and Computer Vision to monitor vineyard health and estimate wine yield in real-time.
 
 ## Table of Contents
-
-1. [Overview](#1-overview)
-2. [Backend Infrastructure](#2-backend-infrastructure)
-3. [Dashboard](#3-dashboard)
-4. [CV and Predictions](#4-cv-and-predictions)
-   - 4.1 [Stage 1: Leaf Detection (YOLOv8-Medium)](#41-stage-1-leaf-detection-yolov8-medium)
-   - 4.2 [Stage 2: Health Classification (YOLOv8-cls)](#42-stage-2-health-classification-yolov8-cls)
-   - 4.3 [The Polygon-to-Bounding-Box Dataset Fix (Critical Debugging)](#43-the-polygon-to-bounding-box-dataset-fix-critical-debugging)
-   - 4.4 [Grape Counting & Liter Estimation (Mathematical Model)](#44-grape-counting--liter-estimation-mathematical-model)
-5. [Getting Started](#5-getting-started)
+- [🎯 1. Overview](#1-overview)
+- [🔌 2. Hardware Implementation & Setup](#2-hardware-implementation-setup)
+- [📊 3. Dashboard](#3-dashboard)
+- [👁️ 4. CV Pipeline](#4-cv-pipeline)
+    - [4.1. Yield Estimation (Mathematical Model)](#41-yield-estimation-mathematical-model)
+- [🧠 5. Predictive Analytics & Telemetry Forecasting](#5-predictive-analytics-telemetry-forecasting)
+- [🚀 6. Getting Started](#6-getting-started)
 
 ---
 
-## 1. Overview
+## 🎯 1. Overview
+EdgeVine bridges the gap between agricultural tradition and modern artificial intelligence. By deploying a network of low-power sensors across vineyard sectors, the system continuously aggregates micro-climate data. This telemetry is fused with a robust, two-stage YOLOv8 Computer Vision pipeline capable of analyzing field imagery to detect early signs of phytosanitary stress (diseases, water deficit) and mathematically projecting harvest volum, helping winemakers make data-driven decisions for their production.
 
-EdgeVine represents the future of smart farming. Managing modern vineyards presents complex challenges: fluctuating micro-climates, soil moisture stress, and rapidly spreading diseases like Esca or Leaf Blight. Traditionally, identifying these conditions requires manual vineyard patrols, which are labor-intensive and slow.
+```mermaid
+flowchart TB
+    %% General Styles
+    classDef physical fill:#3e2723,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef transport fill:#0d47a1,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef db fill:#1b5e20,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef engine fill:#e65100,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef client fill:#4a148c,stroke:#fff,stroke-width:2px,color:#fff;
 
-EdgeVine bridges this gap by combining **automated sensor nodes** (placed directly on the vines) with **high-resolution vision cameras**. 
+    subgraph Physical_Vineyard ["Physical Vineyard"]
+        SN["Sentinel Node (IoT Sensors)"]:::physical
+        Cam["Field Camera (BGR Images)"]:::physical
+    end
 
-### High-Level System Architecture
+    subgraph Data_Pipeline ["Data Pipeline"]
+        LoRa["LoRaWAN Gateway"]:::transport
+        MQTT["MQTT Broker"]:::transport
+    end
 
-EdgeVine is designed as a set of containerized, loosely-coupled microservices that communicate through a shared database and a message broker:
+    subgraph Data_Storage ["Database (PostgreSQL)"]
+        DB[(PostgreSQL Database)]:::db
+    end
+
+    subgraph AI_Analytics ["AI and Analytics Engines"]
+        Prophet["Predictions and Trend (Facebook Prophet)"]:::engine
+        CV_Engine["CV Pipeline YOLOv8 and Volumetric Math"]:::engine
+    end
+
+    subgraph Dashboard_Presentation ["Dashboard (Astro and React)"]
+        Astro["Astro API Backend"]:::client
+        React["React UI Frontend (Leaflet Map)"]:::client
+    end
+
+    %% Telemetry flows
+    SN -->|"Telemetry Data"| LoRa
+    LoRa --> MQTT
+    MQTT -->|"Store Telemetry"| DB
+    DB -->|"Retrieve History"| Prophet
+    Prophet -->|"72h and 48h Forecasts"| DB
+
+    %% CV flows
+    Cam -->|"Field Photos"| Astro
+    Astro -->|"Raw Images"| CV_Engine
+    CV_Engine -->|"1. Leaf Detection (YOLOv8-Medium)"| CV_Engine
+    CV_Engine -->|"2. Health Classification (YOLOv8-Nano-cls)"| CV_Engine
+    CV_Engine -->|"3. Grape Detection and Volume Math"| CV_Engine
+    CV_Engine -->|"Processed JSON Diagnostics"| Astro
+
+    %% UI flows
+    DB -->|"Live Telemetry and Settings"| Astro
+    Astro -->|"API Responses"| React
+    React -->|"Visual Overlays and Yield Margins"| React
 
 ```
-┌────────────────────────────────────────────────────────────────────────┐
-│                          EdgeVine Architecture                         │
-│                                                                        │
-│   [Arduino Leaf Nodes]  ──► [Mosquitto MQTT Broker]                     │
-│      (LoRaWAN Gateway)           │                                     │
-│                                  ▼                                     │
-│                         [MQTT Subscriber Worker]                       │
-│                                  │                                     │
-│                     ┌────────────┴────────────┐                        │
-│                     ▼                         ▼                        │
-│             [PostgreSQL DB] ◄────────► [CV/inference.py]               │
-│                     ▲                         │ (JSON & Image output)  │
-│                     │                         ▼                        │
-│             [Analytics API]            [Astro Web App]                 │
-│                 (Port 5001)               (Port 4321)                  │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-The entire software ecosystem is containerized via **Docker Compose**, providing simple, reproducible deployments from local laptops to cloud edge servers.
 
 ---
 
-## 2. Backend Infrastructure
+## 🔌 2. Hardware Implementation & Setup
 
-The backend infrastructure operates as the nervous system of EdgeVine, handling telemetry ingestion, database persistence, and predictive ML jobs. It is located inside the `mqtt-server/` directory and managed via Docker Compose.
+To complete 
 
-### Key Components
+---
 
-1. **Eclipse Mosquitto MQTT Broker**:
-   - Acts as the central ingestion point for LoRaWAN gateway relays.
-   - Arduino nodes publish sensor measurements to structured topic routes:
-     - `zone/{zone_id}/sensor/temperature`
-     - `zone/{zone_id}/sensor/humidity`
-     - `zone/{zone_id}/sensor/moisture`
-     - `zone/{zone_id}/sensor/image`
+## 📊 3. Dashboard
+The EdgeVine Dashboard is built with **Astro** and **React**, serving as a unified precision viticulture control panel:
+
+- **Interactive Map**: Built with Leaflet to draw sector boundaries, configure row grid layouts (spacing and orientation), and place sentinel nodes.
+- **Telemetry Console**: Displays real-time sensor metrics (temperature, humidity, soil moisture) with instant threshold violation alerts.
+- **Vision Console**: Allows users to upload field photos or view active camera feeds with immediate disease and grape cluster overlays.
+- **Predictive Panel**: Plots 72-hour soil moisture and 48-hour temperature curves to anticipate weather and drought risks.
+- **System Settings**: Configures environmental thresholds, camera optical constants, and the depth uncertainty percentage.
+
+---
+
+## 👁️ 4. CV Pipeline
+EdgeVine's non-invasive Computer Vision pipeline runs in parallel stages to diagnose vineyard health and estimate wine output:
+- **🍃 Leaf Detection** (YOLOv8-Medium): YOLOv8-Medium isolates individual grapevine leaves, which are cropped and passed to the Health Classication model
+- **Health Classication** (Nano-cls): classifies the leaves into three states: 
+
+   | Class | Indicator | Visual Diagnostic |
+   |---|---|---|
+   | 🔴 **Disease** | High Risk | Visible fungal/bacterial pathology (e.g., Leaf Blight, Black Rot). |
+   | 🟢 **Healthy** | Optimal | Pristine chlorophyll signature, intact vascular structure. |
+   | 🟠 **Stress** | Warning | Severe water stress, heat damage, or early wood disease symptoms. |
+- **🍇 Grape Detection** (YOLOv8-Nano): Isolates grape clusters in the canopy to prepare physical geometry datasets.
+
+
+### 4.1. Yield Estimation (Mathematical Model)
+EdgeVine translates 2D bounding boxes into physical liquid volume:
+
+1. **Pixel-to-Millimeter Conversion**: Converts camera dimensions into physical space based on focal length ($f$), sensor width ($S_w$), row distance ($D$), and image resolution ($I_{img}$):
+   $$ \text{Pixel\_to\_mm} = \frac{D \cdot S_w}{f \cdot I_{img}} $$
+
+2. **Physical Dimensions**: The real physical width ($w_i$) and height ($h_i$) of the grape cluster $i$ in millimeters are derived by multiplying the bounding box pixel dimensions ($W_{i, \text{px}}$ and $H_{i, \text{px}}$) by the spatial scale ratio:
+   $$ w_i = W_{i, \text{px}} \cdot S_{\text{scale}} $$
+   $$ h_i = H_{i, \text{px}} \cdot S_{\text{scale}} $$
+3. **Biomass Estimation**: Approximates cluster depth as 10% of physical area. Multiplying by grape density ($\rho_{grape} = 0.8\text{ g/cm}^3$) yields estimated cluster mass in grams ($W_{i, \text{grams}}$):
+   $$ \text{Weight}_{i, \text{grams}} = (w_i \cdot h_i \cdot 0.1) \cdot \rho_{grape} $$
+
+4. **Wine Yield**: Total grams from $N$ clusters are scaled by chemical yield efficiency ($\eta_{yield} = 0.7$) to compute total liters ($L$):
+   $$ L = \left( \frac{\sum_{i=1}^{N} \text{Weight}_{i, \text{grams}}}{1000} \right) \cdot \eta_{yield} $$
+
+> **Calibration:** Fluctuations in row distance ($D$) are mitigated by dynamically calculating uncertainty ranges that is expressed in percentage in settings (default 10%) using a customizable margin.
+
+
+---
+## 🧠 5. Predictive Analytics & Telemetry Forecasting
+EdgeVine leverages historical sensor data to anticipate critical climate and soil changes before they happen.
+- **Soil Moisture (72h Forecast)**: Prophet models the trend using daily/weekly seasonal variations, treating temperature and rain forecasts as dynamic regressors to predict soil dryness.
+- **Ambient Temperature (48h Forecast)**: Prophet fits daily temperature curves, utilizing relative air humidity as a regressor to foresee sudden thermal shifts.
+
+Preventive Alarms: The generated prediction curves ($y_{\text{hat}}$ and its confidence intervals) are evaluated against agricultural thresholds. If values are predicted to breach safety margins (e.g., moisture falling below capacity or temperatures hitting $\le 2^\circ\text{C}$), the dashboard instantly flags a preemptive warning, allowing winemakers to intervene hours before the event actually occurs.
    
-2. **MQTT Subscriber Python Worker**:
-   - A highly optimized, thread-safe background service that monitors Mosquitto.
-   - It performs spelling and value normalization (e.g., standardizing `mosture` -> `moisture`).
-   - Using an in-memory buffer, it accumulates telemetry per zone and performs a batch SQL insert into PostgreSQL when a complete reading is gathered.
-   - When an `image` payload arrives, it saves the file to disk and immediately executes the AI computer vision pipeline asynchronously as a subprocess.
-
-3. **PostgreSQL Database**:
-   - The central relational store.
-   - Houses tables for `vineyards`, `zones`, physical `sensori` readings, and `vision_results` (storing grape counts, leaf health percentages, image URLs, and wine volume forecasts).
-
-4. **Analytics Microservice**:
-   - Runs a periodic cron worker (`fetch_and_archive.py`) to combine historical PostgreSQL sensor data with localized external weather APIs (via Open-Meteo).
-   - Exposes a REST API (`prediction_server.py` on Port `5001`) that serves short-term ARIMA/linear temperature forecasts and evapotranspiration indexes to the frontend.
-
-<!-- 📸 INSERT: Database Schema / MQTT Data Flow Diagram -->
-
 ---
 
-## 3. Dashboard
+## 🚀 6. Getting Started
 
-The frontend interface is a premium, map-first dashboard designed to give vineyard managers immediate visual clarity. It is built using **Astro 4** with **React 18** and styled with a customized TailwindCSS color scheme.
+EdgeVine is containerized for streamlined deployment across environments.
 
-<!-- 📸 INSERT: Web Dashboard Map View Screenshot -->
+1. **Environment Setup**
+   Ensure Docker and Docker Compose are installed. Copy the example configuration to initialize your secrets:
+   ```bash
+   cp .env.example .env
+   ```
+   
+2. **Launch the Platform**
+   Build and boot the interconnected services (PostgreSQL Database, MQTT Broker, Prediction Engine, and Astro Dashboard):
+   ```bash
+   docker compose up --build
+   ```
 
-### Dashboard Features
-
-- **Map-First Geo-Tracking**: Integrates Leaflet maps with custom polygon editing (Geoman). Each zone is colored based on its real-time health index (Green = Healthy, Orange = Water Stressed, Red = Disease Alert). Clicking a zone launches an immersive details panel showing live micro-climate trends and camera feeds.
-- **AI Vision Console**: A drag-and-drop web workbench that lets growers upload raw vineyard photos to trigger on-demand YOLO analyses. Results are rendered with color-coded bounding boxes and interactive data sheets.
-- **Statistics & Predictive Analytics**: Responsive time-series line graphs (Recharts) detailing soil moisture evolution, combined with predictive forecast overlays (temperature and relative humidity) powered by the analytics microservice.
-- **Canopy Health Scorecard**: A dynamic donut chart breaking down the ratio of healthy vs. stressed foliage in each vineyard sector.
-
-<!-- 📸 INSERT: Statistics Page & AI Vision Console Screenshots -->
-
----
-
-## 4. CV and Predictions
-
-Computer Vision is the intellectual core of EdgeVine. It operates as a **two-stage pipeline** that turns raw BGR images into rich crop diagnostics.
-
-<!-- 📸 INSERT: Annotated Output Image showing leaves (colored boxes) and grapes -->
-
-### 4.1 Stage 1: Leaf Detection (YOLOv8-Medium)
-- **Model Backbone**: `YOLOv8-Medium` (`yolo26m.pt`)
-- **Task**: Object Detection
-- **Description**: Stage 1 scans the full-resolution photo to locate every single grapevine leaf. It generates candidate bounding boxes with a confidence threshold above **0.35**, ignoring empty spaces, sky, and non-target crops.
-
-### 4.2 Stage 2: Health Classification (YOLOv8-cls)
-- **Model Backbone**: `YOLOv8-Medium-cls` / `YOLOv8-Nano-cls`
-- **Task**: Image Classification
-- **Description**: For every single bounding box identified in Stage 1, the pipeline crops the corresponding leaf from memory and feeds it to the Stage 2 classifier. The classifier evaluates the leaf's health and classifies it into one of three color-coded states:
-
-| Class ID | Class Name | Box Color | Crop Diagnostic |
-|---|---|---|---|
-| `0` | **disease** | 🔴 Red | Visible fungal/bacterial leaf pathology (e.g. Leaf Blight) |
-| `1` | **healthy** | 🟢 Green | Pristine chlorophyll signature, no visual symptoms |
-| `2` | **stress** | 🟠 Orange | Severe water stress, early Esca / wood disease symptoms |
-
----
-
-### 4.3 The Polygon-to-Bounding-Box Dataset Fix (Critical Debugging)
-
-During implementation, we identified a critical bug in the dataset pre-processing pipeline that caused the Stage 2 model to frequently misclassify healthy leaves as `stress` or `disease`. 
-
-#### The Problem
-The source dataset (`leaf_diesease_merged`) was annotated using **polygons (segmentation format)** consisting of variable-length coordinate lists (`class_id x1 y1 x2 y2 ... xN yN`). However, the pre-processing script (`prepare_cropped_dataset.py`) assumed standard **bounding box (detection format)** lines containing exactly 5 values:
-```python
-# ❌ INCORRECT ASSUMPTION (Caused corrupted crops)
-x_c, y_c, bw, bh = map(float, parts[1:5])
-```
-Because the line contained multiple points, taking `parts[1:5]` extracted the first two coordinates of the polygon as width and height. This led to mathematically corrupted crops containing only black margins, dirt, branches, or random noise. The classifier was effectively trained on garbage crops, causing it to fail on real leaves during live inference.
-
-#### The Mathematical Fix
-We refactored `prepare_cropped_dataset.py` to parse both bounding boxes (length = 5) and polygons (length > 5) dynamically by extracting all coordinate pairs and finding the true enclosing envelope:
-```python
-#  CORRECT & ROBUST PARSING LOGIC
-if len(parts) == 5:
-    x_c, y_c, bw, bh = map(float, parts[1:5])
-    x1 = int((x_c - bw / 2) * w)
-    y1 = int((y_c - bh / 2) * h)
-    x2 = int((x_c + bw / 2) * w)
-    y2 = int((y_c + bh / 2) * h)
-else:
-    # Extract all x (even indices) and y (odd indices) coordinates
-    coords = list(map(float, parts[1:]))
-    x_coords = coords[0::2]
-    y_coords = coords[1::2]
-    
-    # Calculate the minimal bounding box enclosing the entire polygon
-    x1 = int(min(x_coords) * w)
-    y1 = int(min(y_coords) * h)
-    x2 = int(max(x_coords) * w)
-    y2 = int(max(y_coords) * h)
-```
-After regenerating the crops and re-training the model on this clean dataset, the model immediately achieved **99.4% confidence** in identifying healthy leaves, completely eliminating false disease alarms.
-
----
-
-### 4.4 Grape Counting & Liter Estimation (Mathematical Model)
-
-Yield estimation is computed from grape cluster bounding boxes. The computer vision engine uses the camera's sensor geometry and distance to project 2D bounding boxes into physical volumes.
-
-```
-┌────────────────────────────────────────────────────────┐
-│                    Camera Model Math                   │
-│                                                        │
-│   distance (mm) × sensor_width (mm)                    │
-│   ───────────────────────────────── = real_width (mm)  │
-│          focal_length (mm)                             │
-│                                                        │
-│   real_width (mm)                                      │
-│   ─────────────── = pixel_to_mm_ratio                  │
-│     img_width (px)                                     │
-└────────────────────────────────────────────────────────┘
-```
-
-#### Bounding Box to Weight & Liters
-For each grape cluster box detected, we compute its real physical width ($w_{mm}$) and height ($h_{mm}$). The cluster volume is calculated by assuming the cluster depth is **10% of its physical area**. We then apply the biological density of grape clusters ($\rho_{grape} = 0.8\text{ g/cm}^3$) and the chemical wine yield ratio ($\eta_{yield} = 0.7$) to estimate the final liquid output in liters:
-
-```python
-#  GLIMMER OF SIGNIFICANT CODE: BBox to Liters
-def estimate_photo_liters(self, results_grape, imgsz, distance_override=None):
-    if results_grape is None or len(results_grape[0].boxes) == 0:
-        return 0.0
-        
-    dist = distance_override if distance_override is not None else self.distance
-    width_real_mm = (dist * self.sensor_width) / self.focal_length
-    pixel_to_mm = width_real_mm / imgsz
-    
-    total_grams = 0
-    for box in results_grape[0].boxes:
-        w_mm = box.xywh[0][2].item() * pixel_to_mm
-        h_mm = box.xywh[0][3].item() * pixel_to_mm
-        
-        # Area (mm^2) * Depth (10% of area in mm) * Density (g/cm^3 converted)
-        weight_g = (w_mm * h_mm * 0.1) * self.grape_density
-        total_grams += weight_g
-        
-    # Convert total weight from grams to liters of wine
-    return (total_grams / 1000) * self.wine_yield
-```
-
-To account for camera distance changes as a physical vehicle drives down a vine row, we calculate an uncertainty range (`liters_min`, `liters_max`) by varying the camera distance parameter by $\pm 10\%$.
-
----
-
-## 5. Getting Started
-
-Follow these steps to deploy the complete EdgeVine software stack locally.
-
-### Prerequisites
-- **Docker** and **Docker Compose**
-- **Python 3.10+** (with virtual environment)
-- **Node.js 18+**
-
-### 1. Launch the Backend & Web App
-Navigate to the server directory and spin up the complete microservice network via Docker:
-```bash
-cd mqtt-server
-docker compose up -d
-```
-This boots and links Mosquitto (port `1883`), PostgreSQL (port `5432`), the MQTT Telemetry Subscriber, the Analytics Server (port `5001`), and the Astro Web Dashboard (port `4321`).
-
-Open your browser to: **http://localhost:4321** to see the system live.
-
-### 2. Standalone Computer Vision Setup
-To run the computer vision scripts locally, initialize a virtual environment:
-```bash
-cd Iot_project
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r CV/requirements.txt
-```
-
-#### Run Standalone CLI Inference
-```bash
-python CV/inference.py CV/images/test_vigna_2.png output.png 10
-```
-
-### 3. Re-training the Leaf Classifier
-To re-train the classification model using our clean, polygon-corrected dataset pipeline:
-```bash
-# 1. Extract correct crops from polygon/bounding box annotations
-python CV/prepare_cropped_dataset.py
-
-# 2. Balance the dataset across categories using random oversampling
-python CV/balance_dataset.py
-
-# 3. Train the YOLOv8 classification model on macOS GPU (MPS) or CUDA
-python CV/train.py
-```
-
----
+3. **Access the Dashboard**
+   Navigate to `http://localhost:4321` to access the central monitoring console.
