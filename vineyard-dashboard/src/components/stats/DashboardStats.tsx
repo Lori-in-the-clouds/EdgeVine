@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   Camera, Filter, Wine, Thermometer,
-  Droplets, Sprout, Map as MapIcon, Plus, CheckCircle, AlertTriangle, Cpu
+  Droplets, Sprout, Map as MapIcon, Plus, CheckCircle, AlertTriangle
 } from 'lucide-react';
 
 type TelemetryPoint = {
@@ -588,72 +588,16 @@ export function DashboardStats() {
 
 function VisionAnalyzedCard({ img }: { img: any }) {
   const [showModal, setShowModal] = useState(false);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  // Only consider already-analyzed if we have a processed image URL (bounding boxes)
-  const [result, setResult] = useState<any>(img.processed_image_url ? {
-    grape_count: img.grape_count,
-    health_prediction: img.health_status,
-    liters_estimated: img.estimated_liters,
-    processed_image_url: img.processed_image_url
-  } : null);
-  const [error, setError] = useState<string | null>(null);
-
-  const startAnalysis = async () => {
-    if (isAnalyzing || (result && result.processed_image_url)) return;
-    setIsAnalyzing(true);
-    setError(null);
-    try {
-      const formData = new FormData();
-      formData.append('imagePath', img.image_url);
-
-      const res = await fetch('/api/vision/analyze', {
-        method: 'POST',
-        body: formData
-      });
-      const data = await res.json();
-      if (data.success) {
-        setResult(data.data);
-
-        // Persist inference result to database
-        try {
-          await fetch('/api/vision/save-result', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              recordId: img.id,
-              grape_count: data.data.grape_count,
-              health_status: data.data.health_prediction,
-              estimated_liters: data.data.liters_estimated,
-              processed_image_url: data.data.processed_image_url,
-              leaf_healthy_count: data.data.leaf_healthy_count ?? 0,
-              leaf_stress_count: data.data.leaf_stress_count ?? 0,
-              leaf_disease_count: data.data.leaf_disease_count ?? 0
-            })
-          });
-        } catch (saveErr) {
-          console.warn("Failed to persist inference result:", saveErr);
-        }
-      } else {
-        setError(data.details || data.error || "Analysis failed");
-      }
-    } catch (e: any) {
-      setError(e.message);
-      console.error("Analysis Error:", e);
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
-  // Auto-trigger inference on mount if not already analyzed
-  useEffect(() => {
-    if (!result && !isAnalyzing) {
-      startAnalysis();
-    }
-  }, []);
-
-  const processedImg = result?.processed_image_url ? `${result.processed_image_url}?t=${Date.now()}` : null;
-  const healthStatus = result ? result.health_prediction : 'Pending';
-  const grapeCount = result ? result.grape_count : '---';
+  const fallbackImage = 'https://images.unsplash.com/photo-1560493676-04071c5f467b?auto=format&fit=crop&w=800&q=80';
+  const displayImage = img.processed_image_url || img.image_url || fallbackImage;
+  const healthStatus = img.health_status || 'Not analyzed';
+  const grapeCount = img.grape_count ?? '--';
+  const liters = formatNumber(img.estimated_liters);
+  const hasAnalysis = Boolean(
+    img.processed_image_url
+    || img.health_status
+    || (img.grape_count !== null && img.grape_count !== undefined)
+  );
 
   return (
     <>
@@ -665,15 +609,15 @@ function VisionAnalyzedCard({ img }: { img: any }) {
           {img.grape_count === -1 ? (
             <div className="w-full h-full flex flex-col items-center justify-center bg-stone-900 text-stone-600 gap-3">
               <AlertTriangle size={32} className="opacity-20" />
-              <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Scan Failed / Missing</span>
+              <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Saved Without Analysis</span>
             </div>
           ) : (
             <img
-              src={processedImg || img.image_url}
+              src={displayImage}
               alt={img.sensor_name}
               className="w-full h-full object-cover transition-all duration-1000 group-hover:scale-105"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1560493676-04071c5f467b?auto=format&fit=crop&w=800&q=80'; // Fallback statico elegante
+                (e.target as HTMLImageElement).src = fallbackImage;
               }}
             />
           )}
@@ -681,21 +625,11 @@ function VisionAnalyzedCard({ img }: { img: any }) {
           <div className="absolute top-4 left-4 px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
             <p className="text-[8px] font-black text-white uppercase tracking-widest">{img.sensor_name}</p>
           </div>
-          {isAnalyzing && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 backdrop-blur-[1px]">
-              <div className="animate-spin rounded-full h-8 w-8 border-2 border-white/20 border-t-[#228B22]"></div>
-            </div>
-          )}
           <div className="absolute bottom-4 left-4">
-            {isAnalyzing ? (
-              <span className="flex items-center gap-2 text-[9px] font-black text-stone-300 bg-stone-950/80 backdrop-blur-md px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-white/10">
-                <span className="w-2.5 h-2.5 rounded-full border-2 border-white/20 border-t-[#228B22] animate-spin"></span>
-                Inference Running
-              </span>
-            ) : result && img.grape_count !== -1 ? (
+            {hasAnalysis && img.grape_count !== -1 ? (
               <span className="flex items-center gap-2 text-[9px] font-black text-[#228B22] bg-white/95 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-emerald-500/10">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#228B22]"></span>
-                Inference Complete
+                Analysis Saved
               </span>
             ) : null}
           </div>
@@ -710,48 +644,21 @@ function VisionAnalyzedCard({ img }: { img: any }) {
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-6 animate-in fade-in duration-300">
           <div className="absolute inset-0 bg-stone-950/90 backdrop-blur-2xl" onClick={() => setShowModal(false)}></div>
 
-          <div className="relative w-full max-w-6xl aspect-video bg-[#0a0a0a] rounded-[3rem] overflow-hidden border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col md:flex-row shadow-2xl">
+          <div className="relative w-full max-w-6xl max-h-[90vh] bg-[#0a0a0a] rounded-[3rem] overflow-hidden border border-white/10 shadow-[0_0_100px_rgba(0,0,0,0.8)] flex flex-col md:flex-row shadow-2xl">
             {/* Image Section */}
-            <div className="flex-1 relative bg-black group overflow-hidden">
+            <div className="flex-1 relative bg-black group overflow-hidden min-h-[320px]">
               <img
-                src={processedImg || img.image_url}
-                className={`w-full h-full object-contain transition-all duration-1000 ${isAnalyzing ? 'scale-95 opacity-50 blur-sm' : 'scale-100'}`}
+                src={displayImage}
+                className="w-full h-full object-contain transition-all duration-1000 scale-100"
                 alt="Enlarged analysis"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = fallbackImage;
+                }}
               />
-
-              {isAnalyzing && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-6">
-                  <div className="relative">
-                    <div className="w-24 h-24 border-2 border-[#228B22]/20 rounded-full animate-[ping_2s_infinite]"></div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Cpu className="text-[#228B22] h-10 w-10 animate-pulse" />
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center">
-                    <h3 className="text-white font-manrope font-black text-xl tracking-[0.2em] uppercase">Neural Scan Active</h3>
-                    <p className="text-stone-500 text-[10px] font-bold uppercase tracking-[0.4em] mt-2 animate-pulse">Running EdgeVine YOLOv8 Engine</p>
-                  </div>
-                </div>
-              )}
-
-              {error && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-12 text-center">
-                  <AlertTriangle className="text-amber-500 h-16 w-16 mb-4" />
-                  <h3 className="text-white font-black text-lg uppercase tracking-widest mb-2">Analysis Failed</h3>
-                  <p className="text-stone-500 text-xs max-w-md leading-relaxed">{error}</p>
-                  <button
-                    onClick={startAnalysis}
-                    className="mt-6 px-6 py-2 bg-stone-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-stone-700 transition-colors"
-                  >
-                    Retry Analysis
-                  </button>
-                </div>
-              )}
-
-              {result && !isAnalyzing && (
+              {hasAnalysis && (
                 <div className="absolute top-8 left-8 flex gap-3">
                   <div className="bg-[#228B22] text-white px-5 py-2 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl flex items-center gap-2">
-                    <CheckCircle size={14} /> Scan Complete
+                    <CheckCircle size={14} /> Database Entry
                   </div>
                 </div>
               )}
@@ -773,30 +680,40 @@ function VisionAnalyzedCard({ img }: { img: any }) {
                   <div className="w-2 h-2 bg-[#228B22] rounded-full shadow-[0_0_10px_#228B22]"></div>
                   <span className="text-[10px] font-black text-[#228B22] uppercase tracking-[0.3em]">{img.sensor_name}</span>
                 </div>
-                <h2 className="text-3xl font-manrope font-black text-white leading-tight">AI Vision <br /><span className="text-[#228B22]">Analytics</span></h2>
-                <p className="text-stone-500 text-xs mt-4 font-medium leading-relaxed">Advanced pixel-level inspection for yield estimation and pathogen detection.</p>
+                <h2 className="text-3xl font-manrope font-black text-white leading-tight">Vision <br /><span className="text-[#228B22]">Record</span></h2>
+                <p className="text-stone-500 text-xs mt-4 font-medium leading-relaxed">Saved computer-vision data from the database.</p>
               </div>
 
               <div className="flex-1 flex flex-col gap-6">
-                {/* Metric Box 1 */}
                 <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex items-center justify-between group hover:bg-white/[0.08] transition-all">
                   <div className="flex flex-col">
                     <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-1">Grapes Detected</span>
                     <span className="text-4xl font-manrope font-black text-white">{grapeCount}</span>
                   </div>
-                  <div className="p-4 bg-[#228B22]/10 rounded-2xl text-[#228B22] group-hover:scale-110 transition-transform"><Wine size={24} /></div>
+                  <div className="p-4 bg-[#228B22]/10 rounded-2xl text-[#228B22] group-hover:scale-110 transition-transform">
+                    <Wine size={24} />
+                  </div>
                 </div>
 
-                {/* Metric Box 2 */}
                 <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex items-center justify-between group hover:bg-white/[0.08] transition-all">
                   <div className="flex flex-col">
                     <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-1">Canopy Status</span>
-                    <span className={`text-4xl font-manrope font-black ${healthStatus === 'Healthy' ? 'text-[#228B22]' : result ? 'text-amber-500' : 'text-stone-700'}`}>
+                    <span className={`text-4xl font-manrope font-black ${healthStatus === 'Healthy' ? 'text-[#228B22]' : hasAnalysis ? 'text-amber-500' : 'text-stone-700'}`}>
                       {healthStatus}
                     </span>
                   </div>
                   <div className={`p-4 rounded-2xl group-hover:scale-110 transition-transform ${healthStatus === 'Healthy' ? 'bg-[#228B22]/10 text-[#228B22]' : 'bg-amber-500/10 text-amber-500'}`}>
                     {healthStatus === 'Healthy' ? <CheckCircle size={24} /> : <AlertTriangle size={24} />}
+                  </div>
+                </div>
+
+                <div className="bg-white/5 border border-white/5 p-6 rounded-[2rem] flex items-center justify-between group hover:bg-white/[0.08] transition-all">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest mb-1">Estimated Liters</span>
+                    <span className="text-4xl font-manrope font-black text-white">{liters}</span>
+                  </div>
+                  <div className="p-4 bg-[#228B22]/10 rounded-2xl text-[#228B22] group-hover:scale-110 transition-transform">
+                    <Wine size={24} />
                   </div>
                 </div>
               </div>

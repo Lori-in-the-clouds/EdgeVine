@@ -11,6 +11,7 @@ type MonitoringNodeOption = {
 export function VisionConsole() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [result, setResult] = useState<any>(null);
@@ -47,17 +48,46 @@ export function VisionConsole() {
     loadMonitoringNodes();
   }, []);
 
+  const selectFile = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setSaveError('Please select an image file.');
+      return;
+    }
+
+    setSelectedFile(file);
+    setResult(null);
+    setSavedRecordId(null);
+    setSaveError(null);
+
+    const reader = new FileReader();
+    reader.onload = (ev) => setPreviewUrl(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-      setResult(null);
-      setSavedRecordId(null);
-      setSaveError(null);
-      const reader = new FileReader();
-      reader.onload = (ev) => setPreviewUrl(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    }
+    if (file) selectFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget === e.target) setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) selectFile(file);
   };
 
   const runAnalysis = async () => {
@@ -139,7 +169,14 @@ export function VisionConsole() {
       
       {/* Upload & Preview Section */}
       <div className="lg:col-span-12 xl:col-span-8 flex flex-col gap-6">
-        <div className="bg-white border-2 border-dashed border-stone-200 rounded-[3rem] p-4 min-h-[500px] flex items-center justify-center relative overflow-hidden group transition-all hover:border-[#228B22]/30">
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`bg-white border-2 border-dashed rounded-[3rem] p-4 min-h-[500px] flex items-center justify-center relative overflow-hidden group transition-all hover:border-[#228B22]/30 ${
+            isDragging ? 'border-[#228B22] bg-[#228B22]/5' : 'border-stone-200'
+          }`}
+        >
           {!previewUrl ? (
             <div 
               onClick={() => fileInputRef.current?.click()}
@@ -195,6 +232,60 @@ export function VisionConsole() {
             </div>
           )}
         </div>
+
+        <div className="bg-white rounded-[2.5rem] border border-stone-100 shadow-sm p-6 flex flex-col lg:flex-row gap-4 lg:items-end">
+          <div className="flex-1 flex flex-col gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-[#228B22]/10 flex items-center justify-center text-[#228B22]">
+                <Radio size={18} />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Monitoring Node</p>
+                <p className="text-sm font-black text-stone-800">Assign this capture before saving</p>
+              </div>
+            </div>
+
+            <select
+              value={selectedMonitoringNodeId ?? ''}
+              onChange={(event) => {
+                setSelectedMonitoringNodeId(event.target.value ? Number(event.target.value) : null);
+                setSavedRecordId(null);
+                setSaveError(null);
+              }}
+              className="w-full h-12 rounded-2xl bg-stone-50 border border-stone-200 px-4 text-sm font-black text-stone-900 outline-none focus:border-[#228B22]"
+            >
+              {monitoringNodes.length === 0 ? (
+                <option value="">No monitoring nodes</option>
+              ) : (
+                monitoringNodes.map((node) => (
+                  <option key={node.monitoring_node_id} value={node.monitoring_node_id}>
+                    {node.zone_name || node.external_id || `Sentinel ${node.zone_number}`}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-2 lg:w-56">
+            <button
+              type="button"
+              onClick={saveResult}
+              disabled={!result || !selectedMonitoringNodeId || isSaving || savedRecordId !== null}
+              className={`h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3 ${
+                result && selectedMonitoringNodeId && savedRecordId === null
+                  ? 'bg-[#228B22] text-white hover:bg-[#1B4332] shadow-lg shadow-green-950/20'
+                  : 'bg-stone-100 text-stone-400 cursor-not-allowed'
+              }`}
+            >
+              {savedRecordId ? <CheckCircle size={16} /> : <Save size={16} />}
+              {isSaving ? 'Saving...' : savedRecordId ? 'Saved' : 'Save Analysis'}
+            </button>
+
+            {saveError && (
+              <p className="text-[10px] font-bold text-red-500 leading-relaxed">{saveError}</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Control & Results Sidebar */}
@@ -210,53 +301,6 @@ export function VisionConsole() {
           </div>
 
           <div className="flex flex-col gap-6">
-            <div className="p-6 rounded-[2rem] border border-white/10 bg-white/[0.03] flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-[#228B22]/20 flex items-center justify-center text-[#228B22]">
-                  <Radio size={18} />
-                </div>
-                <span className="text-[10px] font-black text-stone-500 uppercase tracking-widest">Monitoring Node</span>
-              </div>
-
-              <select
-                value={selectedMonitoringNodeId ?? ''}
-                onChange={(event) => {
-                  setSelectedMonitoringNodeId(event.target.value ? Number(event.target.value) : null);
-                  setSavedRecordId(null);
-                  setSaveError(null);
-                }}
-                className="w-full h-12 rounded-2xl bg-stone-800 border border-white/10 px-4 text-sm font-black text-white outline-none focus:border-[#228B22]"
-              >
-                {monitoringNodes.length === 0 ? (
-                  <option value="">No monitoring nodes</option>
-                ) : (
-                  monitoringNodes.map((node) => (
-                    <option key={node.monitoring_node_id} value={node.monitoring_node_id}>
-                      {node.zone_name || node.external_id || `Sentinel ${node.zone_number}`}
-                    </option>
-                  ))
-                )}
-              </select>
-
-              <button
-                type="button"
-                onClick={saveResult}
-                disabled={!result || !selectedMonitoringNodeId || isSaving || savedRecordId !== null}
-                className={`h-12 rounded-2xl font-black uppercase text-[10px] tracking-widest transition-all flex items-center justify-center gap-3 ${
-                  result && selectedMonitoringNodeId && savedRecordId === null
-                    ? 'bg-[#228B22] text-white hover:bg-[#1B4332] shadow-lg shadow-green-950/30'
-                    : 'bg-white/5 text-stone-600 cursor-not-allowed'
-                }`}
-              >
-                {savedRecordId ? <CheckCircle size={16} /> : <Save size={16} />}
-                {isSaving ? 'Saving...' : savedRecordId ? 'Saved' : 'Save Analysis'}
-              </button>
-
-              {saveError && (
-                <p className="text-[10px] font-bold text-red-400 leading-relaxed">{saveError}</p>
-              )}
-            </div>
-            
             {/* Metric: Liters */}
             <div className={`p-8 rounded-[2rem] border border-white/5 transition-all duration-700 ${result ? 'bg-white/5 transform translate-y-0 opacity-100' : 'opacity-20 translate-y-4'}`}>
                <div className="flex items-center gap-3 mb-4">
