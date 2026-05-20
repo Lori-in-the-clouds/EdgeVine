@@ -35,6 +35,8 @@ services:
       ZONE_TEMPERATURE_MAX: ${ZONE_TEMPERATURE_MAX}
       ZONE_HUMIDITY_MIN: ${ZONE_HUMIDITY_MIN}
       ZONE_MOISTURE_MIN: ${ZONE_MOISTURE_MIN}
+      CV_PYTHON: ${CV_PYTHON:-/opt/cv-venv/bin/python}
+      PREDICTION_PYTHON: ${PREDICTION_PYTHON:-/opt/predictions-venv/bin/python}
       HOST: ${DASHBOARD_HOST}
       PORT: ${DASHBOARD_PORT}
     depends_on:

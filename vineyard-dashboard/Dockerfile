@@ -8,6 +8,10 @@ ENV NPM_CONFIG_AUDIT=false
 ENV NPM_CONFIG_FUND=false
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
+ENV CV_VIRTUAL_ENV=/opt/cv-venv
+ENV PREDICTION_VIRTUAL_ENV=/opt/predictions-venv
+ENV CV_PYTHON=/opt/cv-venv/bin/python
+ENV PREDICTION_PYTHON=/opt/predictions-venv/bin/python
 
 RUN apt-get update && apt-get install -y \
     --no-install-recommends \
@@ -21,19 +25,19 @@ COPY --from=uv /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
-ENV VIRTUAL_ENV=/opt/venv
-ENV PATH="/opt/venv/bin:$PATH"
+ENV PATH="/opt/cv-venv/bin:/opt/predictions-venv/bin:$PATH"
 
 COPY CV/pyproject.toml CV/uv.lock /tmp/cv/
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv venv /opt/venv --python python3 && \
+    uv venv "$CV_VIRTUAL_ENV" --python python3 && \
     cd /tmp/cv && \
-    uv sync --frozen --no-dev --active
+    VIRTUAL_ENV="$CV_VIRTUAL_ENV" uv sync --frozen --no-dev --active
 
 COPY Predictions/pyproject.toml Predictions/uv.lock /tmp/predictions/
 RUN --mount=type=cache,target=/root/.cache/uv \
+    uv venv "$PREDICTION_VIRTUAL_ENV" --python python3 && \
     cd /tmp/predictions && \
-    uv sync --frozen --no-dev --active
+    VIRTUAL_ENV="$PREDICTION_VIRTUAL_ENV" uv sync --frozen --no-dev --active
 
 COPY vineyard-dashboard/package.json vineyard-dashboard/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm \

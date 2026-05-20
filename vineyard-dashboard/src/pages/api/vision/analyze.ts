@@ -1,10 +1,24 @@
 import type { APIRoute } from 'astro';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { promisify } from 'util';
 
-const execPromise = promisify(exec);
+const execFilePromise = promisify(execFile);
+
+function parseInferenceOutput(stdout: string) {
+  const output = stdout
+    .trim()
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .at(-1);
+
+  if (!output) {
+    throw new Error("Python script returned empty output.");
+  }
+
+  return JSON.parse(output);
+}
 
 export const POST: APIRoute = async ({ request }) => {
   try {
@@ -48,7 +62,8 @@ export const POST: APIRoute = async ({ request }) => {
 
     // 3. Prepare Python command
     const pythonScriptPath = path.join(process.cwd(), '..', 'CV', 'inference.py');
-    const pythonExecutable = 'python3'; 
+    const pythonExecutable = process.env.CV_PYTHON ?? 'python3';
+    const timeout = Number(process.env.CV_TIMEOUT_MS ?? '300000');
     
     // Fetch uncertainty setting from db
     const { sql } = await import('../../../lib/db');
@@ -65,20 +80,27 @@ export const POST: APIRoute = async ({ request }) => {
 
     console.log(`🚀 RUNNING_AI: ${fileName} using ${pythonScriptPath} with uncertainty ${uncertainty}%`);
 
-    const command = `${pythonExecutable} "${pythonScriptPath}" "${inputPath}" "${outputName}" "${uncertainty}"`;
-
     // 4. Execute Inference
     let stdout: string, stderr: string;
     try {
-      const result = await execPromise(command);
+      const result = await execFilePromise(
+        pythonExecutable,
+        [pythonScriptPath, inputPath, outputName, String(uncertainty)],
+        {
+          env: process.env,
+          maxBuffer: 10 * 1024 * 1024,
+          timeout
+        }
+      );
       stdout = result.stdout;
       stderr = result.stderr;
     } catch (execErr: any) {
       console.error("Exec Error:", execErr);
       return new Response(JSON.stringify({ 
         success: false, 
-        error: "Python execution failed. Ensure 'python3' and 'ultralytics' are available.", 
+        error: "Python execution failed. Ensure CV_PYTHON points to an environment with the CV dependencies installed.", 
         details: execErr.message,
+        stdout: execErr.stdout,
         stderr: execErr.stderr
       }), { status: 500 });
     }
@@ -89,11 +111,7 @@ export const POST: APIRoute = async ({ request }) => {
 
     // 5. Parse JSON output from Python
     try {
-      if (!stdout.trim()) {
-         throw new Error("Python script returned empty output.");
-      }
-      
-      const resultData = JSON.parse(stdout.trim());
+      const resultData = parseInferenceOutput(stdout);
       
       const scriptGeneratedPath = path.join(process.cwd(), '..', 'CV', 'images', outputName);
       const publicOutputPath = path.join(resultsDir, outputName);
