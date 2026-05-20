@@ -107,15 +107,19 @@ EdgeVine's non-invasive Computer Vision pipeline runs in parallel stages to diag
 EdgeVine translates 2D bounding boxes into physical liquid volume:
 
 1. **Pixel-to-Millimeter Conversion**: Converts camera dimensions into physical space based on focal length ($f$), sensor width ($S_w$), row distance ($D$), and image resolution ($I_{img}$):
-   $$ \text{Pixel\_to\_mm} = \frac{D \cdot S_w}{f \cdot I_{img}} $$
+
+$$ \text{Pixel\_to\_mm} = \frac{D \cdot S_w}{f \cdot I_{img}} $$
 
 2. **Physical Dimensions**: The real physical width ($w_i$) and height ($h_i$) of the grape cluster $i$ in millimeters are derived by multiplying the bounding box pixel dimensions ($W_{i, \text{px}}$ and $H_{i, \text{px}}$) by the spatial scale ratio:
+
    $$ w_i = W_{i, \text{px}} \cdot S_{\text{scale}} $$
    $$ h_i = H_{i, \text{px}} \cdot S_{\text{scale}} $$
 3. **Biomass Estimation**: Approximates cluster depth as 10% of physical area. Multiplying by grape density ($\rho_{grape} = 0.8\text{ g/cm}^3$) yields estimated cluster mass in grams ($W_{i, \text{grams}}$):
+   
    $$ \text{Weight}_{i, \text{grams}} = (w_i \cdot h_i \cdot 0.1) \cdot \rho_{grape} $$
 
 4. **Wine Yield**: Total grams from $N$ clusters are scaled by chemical yield efficiency ($\eta_{yield} = 0.7$) to compute total liters ($L$):
+   
    $$ L = \left( \frac{\sum_{i=1}^{N} \text{Weight}_{i, \text{grams}}}{1000} \right) \cdot \eta_{yield} $$
 
 > **Calibration:** Fluctuations in row distance ($D$) are mitigated by dynamically calculating uncertainty ranges that is expressed in percentage in settings (default 10%) using a customizable margin.
