@@ -29,6 +29,15 @@ type LatestStats = {
   moist: number | null;
 };
 
+type SectorTelemetry = {
+  id: string;
+  name: string;
+  nodes: number;
+  temp: number | null;
+  hum: number | null;
+  moist: number | null;
+};
+
 const activeBoundCache: { [cx: number]: { lower?: number; upper?: number } } = {};
 
 function formatNumber(value: unknown, maximumFractionDigits = 1) {
@@ -159,6 +168,7 @@ function ActiveExpectedDot(props: any) {
 export function DashboardStats() {
   const [history, setHistory] = useState<TelemetryPoint[]>([]);
   const [latestStats, setLatestStats] = useState<LatestStats | null>(null);
+  const [sectorTelemetry, setSectorTelemetry] = useState<SectorTelemetry[]>([]);
   const [imageLimit, setImageLimit] = useState(4);
   const [recentImages, setRecentImages] = useState<any[]>([]);
   const [isConfigured, setIsConfigured] = useState(true);
@@ -207,6 +217,7 @@ export function DashboardStats() {
             const d = statsData.data;
             const leafTotal = d.health.healthy + d.health.stress + d.health.disease || 1;
             setHistory(d.chartData);
+            setSectorTelemetry(d.sectorTelemetry || []);
             setRecentImages(d.recentCaptures || []);
             setLatestStats({
               safe: Math.round((d.health.healthy / leafTotal) * 100),
@@ -290,29 +301,59 @@ export function DashboardStats() {
           </div>
         </div>
 
-        {/* SECTION 1.1: TELEMETRY KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
-            <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Thermometer className="h-8 w-8" /></div>
-            <div className="flex flex-col">
-              <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Temperature</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.temp, '°C')}</span>
+        {/* SECTION 1.1: SECTOR TELEMETRY */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {sectorTelemetry.length > 0 ? sectorTelemetry.map((sector) => (
+            <div key={sector.id} className="bg-white rounded-[2.5rem] p-6 shadow-ambient border border-stone-100">
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-[10px] font-black text-[#228B22] uppercase tracking-[0.25em] mb-1">Sector Telemetry</p>
+                  <h3 className="text-2xl font-manrope font-black text-stone-800 tracking-tight">{sector.name}</h3>
+                </div>
+                <span className="rounded-full bg-stone-100 px-3 py-1 text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                  {sector.nodes} {sector.nodes === 1 ? 'Node' : 'Nodes'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-stone-50 border border-stone-100 p-4">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
+                    <Thermometer className="h-5 w-5" />
+                  </div>
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Temperature</p>
+                  <span className="text-3xl font-manrope font-black text-stone-800">{formatMetric(sector.temp, '°C')}</span>
+                </div>
+
+                <div className="rounded-2xl bg-stone-50 border border-stone-100 p-4">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-[#228B22]">
+                    <Droplets className="h-5 w-5" />
+                  </div>
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Air Humidity</p>
+                  <span className="text-3xl font-manrope font-black text-stone-800">{formatMetric(sector.hum, '%')}</span>
+                </div>
+
+                <div className="rounded-2xl bg-stone-50 border border-stone-100 p-4">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-500">
+                    <Sprout className="h-5 w-5" />
+                  </div>
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Soil Moisture</p>
+                  <span className="text-3xl font-manrope font-black text-stone-800">{formatMetric(sector.moist, '%')}</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
-            <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Droplets className="h-8 w-8" /></div>
-            <div className="flex flex-col">
-              <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Air Humidity</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.hum, '%')}</span>
+          )) : (
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-stone-100 rounded-2xl flex items-center justify-center text-stone-400">
+                  <Sprout className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-manrope font-black text-stone-800">No Sector Telemetry</h3>
+                  <p className="text-sm font-medium text-stone-400">Latest readings will appear after sector nodes report data.</p>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
-            <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Sprout className="h-8 w-8" /></div>
-            <div className="flex flex-col">
-              <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Soil Moisture</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.moist, '%')}</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* SECTION 1.2: TELEMETRY HISTORY */}
