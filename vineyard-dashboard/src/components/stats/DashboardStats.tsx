@@ -165,6 +165,31 @@ function ActiveExpectedDot(props: any) {
   );
 }
 
+function CenteredAxisLabel(props: any) {
+  const { viewBox, value, isRight = false, offset = 12 } = props;
+  const { x, y, width, height } = viewBox;
+  // Offset horizontally within the axis bounding box
+  const cx = isRight ? x + width - offset : x + offset;
+  // Perfectly center vertically within the axis
+  const cy = y + height / 2;
+  const rot = isRight ? 90 : -90;
+  
+  return (
+    <text
+      x={cx}
+      y={cy}
+      transform={`rotate(${rot} ${cx} ${cy})`}
+      textAnchor="middle"
+      fill="#596372"
+      fontSize={10}
+      fontWeight={800}
+      letterSpacing={0.5}
+    >
+      {value}
+    </text>
+  );
+}
+
 export function DashboardStats() {
   const [history, setHistory] = useState<TelemetryPoint[]>([]);
   const [latestStats, setLatestStats] = useState<LatestStats | null>(null);
@@ -393,23 +418,23 @@ export function DashboardStats() {
                   yAxisId="percentage"
                   orientation="left"
                   domain={[0, 100]}
-                  width={54}
+                  width={60}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(value) => `${value}%`}
+                  tickFormatter={(value) => `${Math.round(value)}%`}
                   tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }}
-                  label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft', fill: '#596372', fontSize: 11, fontWeight: 800 }}
+                  label={<CenteredAxisLabel value="Percentage (%)" offset={12} />}
                 />
                 <YAxis
                   yAxisId="temperature"
                   orientation="right"
                   domain={['dataMin - 2', 'dataMax + 2']}
-                  width={58}
+                  width={65}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(value) => `${value}°`}
+                  tickFormatter={(value) => `${Number(value).toFixed(1)}°`}
                   tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }}
-                  label={{ value: 'Temp (°C)', angle: 90, position: 'insideRight', fill: '#596372', fontSize: 11, fontWeight: 800 }}
+                  label={<CenteredAxisLabel value="Temp (°C)" isRight={true} offset={12} />}
                 />
                 <RechartsTooltip
                   formatter={formatTelemetryTooltip}
@@ -479,10 +504,18 @@ export function DashboardStats() {
 
                 <div className="h-[280px] w-full mt-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={predictions.temperature.forecast}>
+                    <LineChart data={predictions.temperature.forecast} margin={{ top: 12, right: 12, bottom: 15, left: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
                       <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={formatTimeWithPeriod} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dx={-10} domain={['auto', 'auto']} />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(value) => `${Number(value).toFixed(1)}°C`}
+                        width={75}
+                        tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }}
+                        label={<CenteredAxisLabel value="Temperature (°C)" offset={14} />}
+                        domain={['auto', 'auto']}
+                      />
                       <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={formatDateTimeWithPeriod} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
                       <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="lower" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="upper" />} opacity={0.5} />
@@ -518,10 +551,18 @@ export function DashboardStats() {
 
                 <div className="h-[280px] w-full mt-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={predictions.moisture.forecast}>
+                    <LineChart data={predictions.moisture.forecast} margin={{ top: 12, right: 12, bottom: 15, left: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
                       <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={formatTimeWithPeriod} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dx={-10} domain={['auto', 'auto']} />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(value) => `${Math.round(value)}%`}
+                        width={65}
+                        tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }}
+                        label={<CenteredAxisLabel value="Moisture (%)" offset={14} />}
+                        domain={['auto', 'auto']}
+                      />
                       <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={formatDateTimeWithPeriod} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
                       <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="lower" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="upper" />} opacity={0.5} />

@@ -238,6 +238,13 @@ export function DashboardMap({ activeLayer, setActiveLayer, onStatsUpdate }: Das
         }
       }).addTo(group);
 
+      // Fit bounds to sector when polygon is clicked
+      geoLayer.on('click', () => {
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.fitBounds(geoLayer.getBounds(), { padding: [80, 80] });
+        }
+      });
+
       // Add sector name label at the centroid
       const bounds = geoLayer.getBounds();
       if (bounds.isValid()) {
@@ -255,7 +262,7 @@ export function DashboardMap({ activeLayer, setActiveLayer, onStatsUpdate }: Das
             text-transform:uppercase;
             letter-spacing:0.15em;
             white-space:nowrap;
-            pointer-events:none;
+            cursor:pointer;
             background:rgba(0,0,0,0.75);
             backdrop-filter:blur(12px);
             padding:5px 12px 5px 8px;
@@ -274,7 +281,15 @@ export function DashboardMap({ activeLayer, setActiveLayer, onStatsUpdate }: Das
           iconSize: [0, 0],
           iconAnchor: [0, 0]
         });
-        L.marker(center, { icon: labelIcon, interactive: false }).addTo(group);
+        
+        const labelMarker = L.marker(center, { icon: labelIcon, interactive: true }).addTo(group);
+        
+        // Fit bounds to sector when label box is clicked
+        labelMarker.on('click', () => {
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.fitBounds(bounds, { padding: [80, 80] });
+          }
+        });
       }
     });
   }, [sectors, isMapReady]);
