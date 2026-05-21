@@ -38,7 +38,8 @@ export function SettingsDashboard() {
           setInferenceThresholds({
             grape_confidence: numberOrDefault(nextThresholds.grape_confidence, DEFAULT_INFERENCE_THRESHOLDS.grape_confidence),
             leaf_confidence: numberOrDefault(nextThresholds.leaf_confidence, DEFAULT_INFERENCE_THRESHOLDS.leaf_confidence),
-            disease_threshold: numberOrDefault(nextThresholds.disease_threshold, DEFAULT_INFERENCE_THRESHOLDS.disease_threshold)
+            disease_threshold: numberOrDefault(nextThresholds.disease_threshold, DEFAULT_INFERENCE_THRESHOLDS.disease_threshold),
+            stress_threshold: numberOrDefault(nextThresholds.stress_threshold, DEFAULT_INFERENCE_THRESHOLDS.stress_threshold)
           });
         }
       })
@@ -155,9 +156,15 @@ export function SettingsDashboard() {
               formatPercent={formatPercent}
             />
             <ThresholdSlider
-              label="Disease / Stress"
+              label="Disease"
               value={inferenceThresholds.disease_threshold}
               onChange={(value) => updateInferenceThreshold('disease_threshold', value)}
+              formatPercent={formatPercent}
+            />
+            <ThresholdSlider
+              label="Stress"
+              value={inferenceThresholds.stress_threshold}
+              onChange={(value) => updateInferenceThreshold('stress_threshold', value)}
               formatPercent={formatPercent}
             />
           </div>

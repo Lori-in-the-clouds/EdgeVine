@@ -92,6 +92,6 @@ def crop_yolo_dataset(src_dir, dest_dir, padding=10):
     print("[*] Elaborazione completata con successo!")
 
 if __name__ == '__main__':
-    SRC = '/Users/lorenzodimaio/Documents/Iot_project/CV/train_classifier/leaf_diesease_merged'
+    SRC = '/Users/lorenzodimaio/Documents/Iot_project/CV/dataset-leaf-disease-classification-v4'
     DEST = '/Users/lorenzodimaio/Documents/Iot_project/CV/dataset_classificazione'
     crop_yolo_dataset(SRC, DEST, padding=10)

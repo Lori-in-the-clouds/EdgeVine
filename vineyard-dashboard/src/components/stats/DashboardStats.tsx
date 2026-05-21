@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   Camera, Filter, Wine, Thermometer,
-  Droplets, Sprout, Map as MapIcon, Plus, CheckCircle, AlertTriangle
+  Droplets, Sprout, Map as MapIcon, Plus, CheckCircle, AlertTriangle, Loader2
 } from 'lucide-react';
 
 type TelemetryPoint = {
@@ -273,6 +273,48 @@ export function DashboardStats() {
 
     fetchData();
   }, [timeRange]);
+
+  // 3. Auto-poll if there are any pending analyses in recentImages
+  useEffect(() => {
+    const hasPending = recentImages.some((img: any) => 
+      img.health_status === 'Pending Analysis' || img.health_status === 'Analyzing...'
+    );
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      const fetchPollData = async () => {
+        try {
+          const statsRes = await fetch(`/api/vineyard/stats?range=${timeRange}`);
+          const statsData = await statsRes.json();
+          if (statsData.success) {
+            const d = statsData.data;
+            const leafTotal = d.health.healthy + d.health.stress + d.health.disease || 1;
+            setHistory(d.chartData);
+            setSectorTelemetry(d.sectorTelemetry || []);
+            setRecentImages(d.recentCaptures || []);
+            setLatestStats({
+              safe: Math.round((d.health.healthy / leafTotal) * 100),
+              stress: Math.round((d.health.stress / leafTotal) * 100),
+              disease: Math.round((d.health.disease / leafTotal) * 100),
+              totalWine: d.production.estimated_liters,
+              totalWineMin: d.production.estimated_liters_min,
+              totalWineMax: d.production.estimated_liters_max,
+              confidence: d.production.confidence,
+              leavesAnalyzed: d.production.leaves_analyzed,
+              temp: d.global.temp,
+              hum: d.global.hum,
+              moist: d.global.moist
+            });
+          }
+        } catch (e) {
+          console.error("Failed to poll stats", e);
+        }
+      };
+      fetchPollData();
+    }, 3000); // Poll every 3 seconds while pending
+
+    return () => clearInterval(interval);
+  }, [recentImages, timeRange]);
 
   // Removed mock images logic
 
@@ -681,17 +723,18 @@ function VisionAnalyzedCard({ img }: { img: any }) {
   const healthStatus = img.health_status || 'Not analyzed';
   const grapeCount = img.grape_count ?? '--';
   const liters = formatNumber(img.estimated_liters);
+  const isPending = !img.processed_image_url || img.health_status === 'Pending Analysis' || img.health_status === 'Analyzing...';
   const hasAnalysis = Boolean(
     img.processed_image_url
-    || img.health_status
-    || (img.grape_count !== null && img.grape_count !== undefined)
+    && img.health_status !== 'Pending Analysis'
+    && img.health_status !== 'Analyzing...'
   );
 
   return (
     <>
       <div
-        onClick={() => setShowModal(true)}
-        className="group flex flex-col bg-white rounded-[2.5rem] overflow-hidden border border-stone-100 shadow-sm hover:shadow-2xl transition-all duration-700 hover:-translate-y-2 cursor-pointer"
+        onClick={() => !isPending && setShowModal(true)}
+        className={`group flex flex-col bg-white rounded-[2.5rem] overflow-hidden border border-stone-100 shadow-sm hover:shadow-2xl transition-all duration-700 ${isPending ? 'cursor-wait opacity-90' : 'cursor-pointer hover:-translate-y-2'}`}
       >
         <div className="relative aspect-[4/5] overflow-hidden bg-stone-900 group">
           {img.grape_count === -1 ? (
@@ -705,16 +748,42 @@ function VisionAnalyzedCard({ img }: { img: any }) {
               alt={img.sensor_name}
               className="w-full h-full object-cover transition-all duration-1000 group-hover:scale-105"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = fallbackImage;
+                const target = e.target as HTMLImageElement;
+                if (img.processed_image_url && target.src.endsWith(img.processed_image_url) && img.image_url) {
+                  target.src = img.image_url;
+                } else {
+                  target.src = fallbackImage;
+                }
               }}
             />
+          )}
+          {/* Loader Overlay for Pending Analysis */}
+          {isPending && (
+            <div className="absolute inset-0 bg-stone-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-3 z-10">
+              <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse">
+                {img.health_status === 'Analyzing...' ? 'Analyzing Leaf/Grape...' : 'AI Queue: Pending...'}
+              </span>
+            </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
           <div className="absolute top-4 left-4 px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
             <p className="text-[8px] font-black text-white uppercase tracking-widest">{img.sensor_name}</p>
           </div>
-          <div className="absolute bottom-4 left-4">
-            {hasAnalysis && img.grape_count !== -1 ? (
+          <div className="absolute bottom-4 left-4 z-20">
+            {isPending ? (
+              img.health_status === 'Analyzing...' ? (
+                <span className="flex items-center gap-2 text-[9px] font-black text-amber-500 bg-white/95 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-amber-500/20 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                  Analyzing...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2 text-[9px] font-black text-sky-500 bg-white/95 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-sky-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                  In Queue
+                </span>
+              )
+            ) : hasAnalysis && img.grape_count !== -1 ? (
               <span className="flex items-center gap-2 text-[9px] font-black text-[#228B22] bg-white/95 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-emerald-500/10">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#228B22]"></span>
                 Analysis Saved
@@ -740,16 +809,14 @@ function VisionAnalyzedCard({ img }: { img: any }) {
                 className="w-full h-full object-contain transition-all duration-1000 scale-100"
                 alt="Enlarged analysis"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = fallbackImage;
+                  const target = e.target as HTMLImageElement;
+                  if (img.processed_image_url && target.src.endsWith(img.processed_image_url) && img.image_url) {
+                    target.src = img.image_url;
+                  } else {
+                    target.src = fallbackImage;
+                  }
                 }}
               />
-              {hasAnalysis && (
-                <div className="absolute top-8 left-8 flex gap-3">
-                  <div className="bg-[#228B22] text-white px-5 py-2 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl flex items-center gap-2">
-                    <CheckCircle size={14} /> Database Entry
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* AI Control Panel */}

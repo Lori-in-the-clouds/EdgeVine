@@ -91,38 +91,41 @@ def train_stage2_classifier(dataset_dir, epochs=50, batch=32, imgsz=224):
 if __name__ == '__main__':
     
     
-    import wandb
-    wandb.init(entity="edgevine-lorenzo", project="EdgeVine-Leaf-Detector", resume=True)
+    #import wandb
+    #wandb.init(entity="edgevine-lorenzo", project="EdgeVine-Leaf-Detector", resume=True)
 
 
 
-    # Utilizziamo YOLOv8-Medium (yolov8m-cls) per avere molta più capacità di astrazione
-    # ed evitare falsi positivi su luci/ombre e condizioni outdoor estreme.
-    model = YOLO('yolov8m-cls.pt')
+    # Utilizziamo YOLO11-Large (yolo11l-cls) per avere la massima capacità di astrazione,
+    # cogliere pattern finissimi (come ingiallimenti precoci del Mal dell'Esca)
+    # ed evitare falsi positivi in condizioni outdoor reali.
+    model = YOLO('yolo11l-cls.pt')
     
     model.train(
         data='/Users/lorenzodimaio/Documents/Iot_project/CV/dataset_classificazione',
-        epochs=50,
-        batch=32,
-        imgsz=224, # 224 è ottimale per il classificatore yolov8m-cls pre-addestrato
-        device='mps',
+        epochs=80,         # Aumentato a 80 epoche per far convergere perfettamente il modello Large
+        batch=32,          # Ottimale per stabilità del gradiente e GPU Mac
+        imgsz=256,         # Aumentato a 256 per dare più dettagli spaziali all'IA sui particolari
+        device='mps',      # GPU Apple Silicon attiva
         project='/Users/lorenzodimaio/Documents/Iot_project/CV',
-        name='train_leaf_disease_classifier5',
+        name='train_leaf_disease_classifier_yolo11_large',
         optimizer='AdamW',
         cos_lr=True,
         lr0=0.001,
-        workers=0, # 0 per prevenire bug di multiprocessing su macOS MPS
+        patience=15,       # Interrompe l'addestramento se l'accuratezza di validazione non migliora per 15 epoche
+        label_smoothing=0.1, # Regolarizzazione fondamentale per evitare overfitting e generalizzare meglio
+        workers=4,         # 0 per prevenire deadlock su macOS MPS
         plots=True,
         # --- STRATEGIA DI AUGMENTATION PER CONDIZIONI OUTDOOR ESTREME ---
-        degrees=45.0,     # Ruota le foglie per renderlo robusto a qualsiasi inclinazione
-        translate=0.15,   # Sposta l'immagine per gestire ritagli non perfettamente centrati
-        scale=0.2,        # Varia la scala per simulare foglie vicine e lontane
-        hsv_h=0.03,       # Cambia le tonalità di verde (foglie giovani, vecchie, illuminate)
-        hsv_s=0.8,        # Cambia la saturazione (foglie bagnate, secche o riflettenti)
-        hsv_v=0.6,        # Cambia la luminosità (CRITICO per ombre profonde e sole battente!)
-        flipud=0.5,       # Flips verticali (le foglie possono essere in ogni direzione)
-        fliplr=0.5,       # Flips orizzontali
-        mixup=0.15        # Mescola immagini per gestire foglie sovrapposte e sporcizia di sfondo
+        degrees=45.0,      # Ruota le foglie per essere robusto a qualsiasi inclinazione
+        translate=0.15,    # Sposta l'immagine per gestire ritagli non perfettamente centrati
+        scale=0.2,         # Varia la scala per simulare foglie a distanze diverse
+        hsv_h=0.03,        # Cambia tonalità di verde (foglie giovani, vecchie, illuminate)
+        hsv_s=0.8,         # Cambia la saturazione (foglie secche, bagnate o con riflessi)
+        hsv_v=0.6,         # Cambia la luminosità (CRITICO per ombre profonde e sole battente)
+        flipud=0.5,        # Flip verticali
+        fliplr=0.5,        # Flip orizzontali
+        mixup=0.15         # Mescola immagini per gestire foglie sovrapposte ed erba sullo sfondo
     )
 
 

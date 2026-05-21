@@ -47,8 +47,8 @@ export const POST: APIRoute = async ({ request }) => {
       const buffer = Buffer.from(await image.arrayBuffer());
       fs.writeFileSync(inputPath, buffer);
     } else {
-      // Use existing file in public folder (security check: ensure it starts with /captures/)
-      if (!imagePath?.startsWith('/captures/')) {
+      // Use existing file in public folder (security check: ensure it starts with /captures/ or /postgres/seed_images/)
+      if (!imagePath?.startsWith('/captures/') && !imagePath?.startsWith('/postgres/seed_images/')) {
         return new Response(JSON.stringify({ success: false, error: "Invalid path access" }), { status: 403 });
       }
       fileName = path.basename(imagePath);
@@ -100,7 +100,9 @@ export const POST: APIRoute = async ({ request }) => {
           '--leaf-confidence',
           String(visionSettings.inference_thresholds.leaf_confidence),
           '--disease-threshold',
-          String(visionSettings.inference_thresholds.disease_threshold)
+          String(visionSettings.inference_thresholds.disease_threshold),
+          '--stress-threshold',
+          String(visionSettings.inference_thresholds.stress_threshold)
         ],
         {
           env: process.env,

@@ -14,6 +14,7 @@ export type InferenceThresholds = {
   grape_confidence: number;
   leaf_confidence: number;
   disease_threshold: number;
+  stress_threshold: number;
 };
 
 export const MAX_DEPTH_UNCERTAINTY_PCT = 20;
@@ -25,9 +26,10 @@ export const DEFAULT_CAMERA_PARAMS: CameraParams = {
 };
 
 export const DEFAULT_INFERENCE_THRESHOLDS: InferenceThresholds = {
-  grape_confidence: 0.25,
+  grape_confidence: 0.30,
   leaf_confidence: 0.35,
-  disease_threshold: 0.95
+  disease_threshold: 0.90,
+  stress_threshold: 0.40
 };
 
 export const DEFAULT_VISION_SETTINGS: VisionSettings = {
@@ -79,7 +81,8 @@ export function normalizeVisionSettings(raw: unknown): VisionSettings {
     inference_thresholds: {
       grape_confidence: confidenceOrFallback(thresholdSource.grape_confidence, DEFAULT_INFERENCE_THRESHOLDS.grape_confidence),
       leaf_confidence: confidenceOrFallback(thresholdSource.leaf_confidence, DEFAULT_INFERENCE_THRESHOLDS.leaf_confidence),
-      disease_threshold: confidenceOrFallback(thresholdSource.disease_threshold, DEFAULT_INFERENCE_THRESHOLDS.disease_threshold)
+      disease_threshold: confidenceOrFallback(thresholdSource.disease_threshold, DEFAULT_INFERENCE_THRESHOLDS.disease_threshold),
+      stress_threshold: confidenceOrFallback(thresholdSource.stress_threshold, DEFAULT_INFERENCE_THRESHOLDS.stress_threshold)
     }
   };
 }
@@ -115,6 +118,7 @@ export function validateVisionSettings(raw: unknown): VisionSettings {
   const grapeConfidence = Number(thresholdSource.grape_confidence);
   const leafConfidence = Number(thresholdSource.leaf_confidence);
   const diseaseThreshold = Number(thresholdSource.disease_threshold);
+  const stressThreshold = Number(thresholdSource.stress_threshold);
 
   if (!Number.isFinite(grapeConfidence) || grapeConfidence < 0 || grapeConfidence > 1) {
     throw new Error('inference_thresholds.grape_confidence must be a number between 0 and 1');
@@ -128,6 +132,10 @@ export function validateVisionSettings(raw: unknown): VisionSettings {
     throw new Error('inference_thresholds.disease_threshold must be a number between 0 and 1');
   }
 
+  if (!Number.isFinite(stressThreshold) || stressThreshold < 0 || stressThreshold > 1) {
+    throw new Error('inference_thresholds.stress_threshold must be a number between 0 and 1');
+  }
+
   return {
     depth_uncertainty_pct: depth,
     camera_params: {
@@ -138,7 +146,8 @@ export function validateVisionSettings(raw: unknown): VisionSettings {
     inference_thresholds: {
       grape_confidence: grapeConfidence,
       leaf_confidence: leafConfidence,
-      disease_threshold: diseaseThreshold
+      disease_threshold: diseaseThreshold,
+      stress_threshold: stressThreshold
     }
   };
 }

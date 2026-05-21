@@ -93,20 +93,11 @@ export const GET: APIRoute = async ({ url }) => {
 
     // 2. Analisi Salute GRANULARE (Conteggio Foglie AI)
     const healthData = await sql<any>(`
-      WITH latest_zone_status AS (
-        SELECT DISTINCT ON (monitoring_node_id)
-          leaf_healthy_count, 
-          leaf_stress_count, 
-          leaf_disease_count,
-          monitoring_node_id
-        FROM computer_vision_data
-        ORDER BY monitoring_node_id, timestamp DESC
-      )
       SELECT 
-        SUM(leaf_healthy_count) as total_healthy,
-        SUM(leaf_stress_count) as total_stress,
-        SUM(leaf_disease_count) as total_disease
-      FROM latest_zone_status
+        COALESCE(SUM(leaf_healthy_count), 0) as total_healthy,
+        COALESCE(SUM(leaf_stress_count), 0) as total_stress,
+        COALESCE(SUM(leaf_disease_count), 0) as total_disease
+      FROM computer_vision_data
     `);
 
     // 3. Storico DINAMICO

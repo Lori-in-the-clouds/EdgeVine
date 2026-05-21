@@ -9,6 +9,8 @@ __pycache__/
 .env.*
 !.env.example
 
+dataset-leaf-disease-classification-v4/
+dataset_classificazione/
 vineyard-dashboard/.idea/
 vineyard-dashboard/.astro/
 vineyard-dashboard/dist/
@@ -35,6 +37,7 @@ CV/train_leaf_disease_classifier_nano/*
 *.png
 !BoxPR_curve.png
 !confusion_matrix_normalized.png
+!results.png
 *.code-workspace
 
 .vscode/
@@ -42,3 +45,13 @@ CV/train_leaf_disease_classifier_nano/*
 vineyard-dashboard/node_modules/
 
 *.tsbuildinfo
+
+
+!test1.jpg
+!test2.jpg
+!test3.jpg
+!test4.jpg
+!test5.jpg
+!test6.jpg
+!test7.jpeg
+!test8.jpg
