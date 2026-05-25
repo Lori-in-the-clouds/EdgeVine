@@ -44,3 +44,6 @@ CV/train_leaf_disease_classifier_nano/*
 vineyard-dashboard/node_modules/
 
 *.tsbuildinfo
+
+
+!vineyard-dashboard/public/readme_source/setting_page.png
