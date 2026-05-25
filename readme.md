@@ -129,7 +129,7 @@ Fine-tune global sensor alert limits, camera spatial calibration constants (foca
 
 
 > [!NOTE] 
-> 🎥 The complete demo video is available for download <a href="vineyard-dashboard/public/readme_source/full_demo.zip?raw=true" download>here</a>.
+> 🎥 The complete demo video is available for download  [here](vineyard-dashboard/public/readme_source/full_demo.zip).
 ---
 
 ## 👁️ 4. CV Pipeline
