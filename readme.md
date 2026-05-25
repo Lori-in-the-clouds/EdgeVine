@@ -199,7 +199,8 @@ Follow these steps to deploy and access the EdgeVine platform on your local mach
     ```
 
     > [!TIP]
-    > You can open the newly created `.env` file to customize environmental thresholds, PostgreSQL passwords, or the MQTT broker credentials if you plan to link physical sentinel nodes.
+    > 
+    >You can open the newly created `.env` file to customize environmental thresholds, PostgreSQL passwords, or the MQTT broker credentials if you plan to link physical sentinel nodes.
 
 2. **Spin Up the Stack:** Orchestrate and launch the entire microservice ecosystem. Docker will download the baseline images, build the custom layers, and boot the inter-service network:
 
