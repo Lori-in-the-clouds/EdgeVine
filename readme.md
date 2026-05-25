@@ -92,7 +92,7 @@ EdgeVine features a responsive, real-time decision center powered by Astro and R
 Draw sector boundaries, configure row spacing/orientation, and place IoT sentinel nodes interactively. Sectors dynamically update color based on CV health diagnostics and sensor alerts.
 
 <p align="center">
-  <img src="vineyard-dashboard/public/readme_source/main_dashboard.webp" width="900" alt="Interactive Map" style="border-radius: 8px;" />
+  <img src="vineyard-dashboard/public/readme_source/main_dashboard.webp" width="50%" alt="Interactive Map" style="border-radius: 8px;" />
 </p>
 
 ---
@@ -101,7 +101,7 @@ Draw sector boundaries, configure row spacing/orientation, and place IoT sentine
 A regional bulletin system allowing growers to publish and propagate localized phytosanitary, frost, or weather warnings to neighboring vineyards in the network.
 
 <p align="center">
-  <img src="vineyard-dashboard/public/readme_source/report.webp" width="900" alt="Neighbor Alerts" style="border-radius: 8px;" />
+  <img src="vineyard-dashboard/public/readme_source/report.webp" width="50%" alt="Neighbor Alerts" style="border-radius: 8px;" />
 </p>
 
 ---
@@ -110,7 +110,7 @@ A regional bulletin system allowing growers to publish and propagate localized p
 A centralized analysis console plotting real-time telemetry curves, future 72-hour soil moisture and 48-hour temperature AI forecasts (Prophet), and automated harvest yield estimations.
 
 <p align="center">
-  <img src="vineyard-dashboard/public/readme_source/statistics.webp" width="900" alt="Statistics Hub" style="border-radius: 8px; border: 1px solid #eaecef;" />
+  <img src="vineyard-dashboard/public/readme_source/statistics.webp" width="50%" alt="Statistics Hub" style="border-radius: 8px;" />
 </p>
 
 ---
@@ -119,7 +119,7 @@ A centralized analysis console plotting real-time telemetry curves, future 72-ho
 An interactive workspace to drag-and-drop crop photographs and run on-demand YOLOv8 inference for instant leaf health diagnostics and cluster weight calculations.
 
 <p align="center">
-  <img src="vineyard-dashboard/public/readme_source/manual_vision.webp" width="900" alt="Manual Inference" style="border-radius: 8px;" />
+  <img src="vineyard-dashboard/public/readme_source/manual_vision.webp" width="50%" alt="Manual Inference" style="border-radius: 8px;" />
 </p>
 
 ---
@@ -128,12 +128,12 @@ An interactive workspace to drag-and-drop crop photographs and run on-demand YOL
 Fine-tune global sensor alert limits, camera spatial calibration constants (focal length, distance), and predictive anomaly thresholds.
 
 <p align="center">
-  <img src="docs/assets/dashboard_settings.webp" width="900" alt="Unified Settings" style="border-radius: 8px;" />
+  <img src="docs/assets/dashboard_settings.webp" width="50%" alt="Unified Settings" style="border-radius: 8px;" />
 </p>
 
 
-> [!NOTE] Curious to see EdgeVine in action?
-> 🎥 **[Watch the Complete Demo Video (MP4)](docs/assets/full_demo.mp4)**
+> [!NOTE] 
+> 🎥 The complete demo video is available for download [here](vineyard-dashboard/public/readme_source/full_demo.mp4).
 ---
 
 ## 👁️ 4. CV Pipeline
