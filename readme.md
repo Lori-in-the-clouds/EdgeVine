@@ -123,8 +123,8 @@ An interactive workspace to drag-and-drop crop photographs and run on-demand YOL
 ### ⚙️ 3.5. Unified Settings
 Fine-tune global sensor alert limits, camera spatial calibration constants (focal length, distance), and predictive anomaly thresholds.
 
-<p align="center">
-  <img src="docs/assets/dashboard_settings.webp" width="50%" alt="Unified Settings" style="border-radius: 8px;" />
+<p align="left">
+  <img src="vineyard-dashboard/public/readme_source/setting_page.png" width="50%" alt="Unified Settings" style="border-radius: 8px;" />
 </p>
 
 
