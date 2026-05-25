@@ -16,6 +16,8 @@ dataset_classificazione/
 vineyard-dashboard/.idea/
 vineyard-dashboard/.astro/
 vineyard-dashboard/dist/
+CV/dataset-leaf-disease-classification-v4
+docs
 *.jpg
 last.pt
 train.cache
@@ -57,3 +59,4 @@ vineyard-dashboard/node_modules/
 !test6.jpg
 !test7.jpeg
 !test8.jpg
+!vineyard-dashboard/public/readme_source/setting_page.png
