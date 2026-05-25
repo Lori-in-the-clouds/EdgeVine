@@ -9,6 +9,8 @@ __pycache__/
 .env.*
 !.env.example
 
+.gitkeep
+
 dataset-leaf-disease-classification-v4/
 dataset_classificazione/
 vineyard-dashboard/.idea/
