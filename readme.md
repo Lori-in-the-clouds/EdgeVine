@@ -16,10 +16,10 @@ EdgeVine is an advanced precision viticulture platform that seamlessly integrate
   - [4.1. Yield Estimation (Mathematical Model)](#41-yield-estimation-mathematical-model)
 - [🧠 5. Predictive Analytics \& Telemetry Forecasting](#-5-predictive-analytics--telemetry-forecasting)
 - [🚀 6. Getting Started](#-6-getting-started)
-  - [🛠️ Quick Start in 3 Steps](#️-quick-start-in-3-steps)
-    - [1. Environment Setup:](#1-environment-setup)
-    - [2. Spin Up the Stack](#2-spin-up-the-stack)
-    - [3. Open the Dashboard](#3-open-the-dashboard)
+  - [🛠️ 6.1. Quick Start in 3 Steps](#️-61-quick-start-in-3-steps)
+    - [📋 1. Environment Setup:](#-1-environment-setup)
+    - [🏗️ 2. Spin Up the Stack:](#️-2-spin-up-the-stack)
+    - [🖥️ 3. Open the Dashboard:](#️-3-open-the-dashboard)
 
 ---
 
@@ -190,11 +190,11 @@ EdgeVine is fully containerized using **Docker** and **Docker Compose**, orchest
 > [!IMPORTANT]
 > **Prerequisites:** Ensure you have [Docker Desktop](https://www.docker.com/products/docker-desktop/) (which includes Docker Compose) installed and running on your host system before proceeding.
 
-### 🛠️ Quick Start in 3 Steps
+### 🛠️ 6.1. Quick Start in 3 Steps
 
 Follow these steps to deploy and access the EdgeVine platform on your local machine:
 
-#### 1. Environment Setup:
+#### 📋 1. Environment Setup:
 First, copy the example environment template to configure your local credentials and system secrets:
 
 ```bash
@@ -205,20 +205,32 @@ cp .env.example .env
 > [!TIP]
 >You can open the newly created `.env` file to customize environmental thresholds, PostgreSQL passwords, or the MQTT broker credentials if you plan to link physical sentinel nodes.
 
-#### 2. Spin Up the Stack
+#### 🏗️ 2. Spin Up the Stack:
 Orchestrate and launch the entire microservice ecosystem. Docker will download the baseline images, build the custom layers, and boot the inter-service network:
 
 ```bash
 # Build containers and launch the ecosystem
 docker compose up --build
 ```
+Once the stack is running, the following services will be available:
+| Service | Port | Description |
+| :--- | :---: | :--- |
+| 🌐 **Astro & React WebApp** | `4321` | The central viticulture control dashboard. |
+| 🧠 **CV & Prediction Engine** | `5001` | Runs the live YOLOv8 crop vision pipeline and trend forecasts. |
+| 🗄️ **PostgreSQL Database** | `5432` | Stores timeseries telemetry, vineyard boundaries, and model coefficients. |
+| 🔌 **Mosquitto MQTT Broker** | `1883` | Manages low-latency message streaming from the Sentinel sensor fleet. |
 
-#### 3. Open the Dashboard
+#### 🖥️ 3. Open the Dashboard:
 Once the startup logs stabilize, open your preferred browser and navigate to the local portal to begin managing your viticulture mapping, alerts, and vision diagnostics:
-  <p align="center">
+  <p align="left">
   <a href="http://localhost:4321" target="_blank" style="font-size: 1.1em; font-weight: bold; text-decoration: none; color: #228B22; border: 1px solid #228B22; padding: 10px 20px; border-radius: 12px; display: inline-block; transition: all 0.2s ease;">
       🔗 Open EdgeVine Dashboard 🍇 (http://localhost:4321)
   </a>
 </p>
+
+
+
+
+
 
 
