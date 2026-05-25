@@ -129,8 +129,7 @@ Fine-tune global sensor alert limits, camera spatial calibration constants (foca
 
 
 > [!NOTE] 
-> 🎥 The complete demo video is available for download  [here](vineyard-dashboard/public/readme_source/full_demo.zip).
----
+> 🎥 The complete demo video is available for download  [here](https://github.com/Lori-in-the-clouds/EdgeVine/blob/main/vineyard-dashboard/public/readme_source/full_demo.zip).
 
 ## 👁️ 4. CV Pipeline
 EdgeVine's non-invasive Computer Vision pipeline runs in parallel stages to diagnose vineyard health and estimate wine output:
