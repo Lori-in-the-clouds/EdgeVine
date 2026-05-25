@@ -13,7 +13,8 @@ EdgeVine is an advanced precision viticulture platform that seamlessly integrate
   - [📸 3.4. Manual Inference Console](#-34-manual-inference-console)
   - [⚙️ 3.5. Unified Settings](#️-35-unified-settings)
 - [👁️ 4. CV Pipeline](#️-4-cv-pipeline)
-  - [4.1. Yield Estimation (Mathematical Model)](#41-yield-estimation-mathematical-model)
+  - [🧠 4.1. Two-Stage YOLO Architecture](#-41-two-stage-yolo-architecture)
+  - [📐 4.2. Yield Estimation (Mathematical Model)](#-42-yield-estimation-mathematical-model)
 - [🧠 5. Predictive Analytics \& Telemetry Forecasting](#-5-predictive-analytics--telemetry-forecasting)
   - [📈 5.1. Soil Moisture (72h Forecast)](#-51-soil-moisture-72h-forecast)
   - [🌡️ 5.2. Ambient Temperature (48h Forecast)](#️-52-ambient-temperature-48h-forecast)
@@ -137,40 +138,51 @@ Fine-tune global sensor alert limits, camera spatial calibration constants (foca
 ---
 
 ## 👁️ 4. CV Pipeline
-EdgeVine's non-invasive Computer Vision pipeline runs in parallel stages to diagnose vineyard health and estimate wine output:
-- **🍃 Leaf Detection** (YOLOv8-Medium): YOLOv8-Medium isolates individual grapevine leaves, which are cropped and passed to the Health Classication model
-- **Health Classication** (Nano-cls): classifies the leaves into three states: 
 
-   | Class | Indicator | Visual Diagnostic |
-   |---|---|---|
-   | 🔴 **Disease** | High Risk | Visible fungal/bacterial pathology (e.g., Leaf Blight, Black Rot). |
-   | 🟢 **Healthy** | Optimal | Pristine chlorophyll signature, intact vascular structure. |
-   | 🟠 **Stress** | Warning | Severe water stress, heat damage, or early wood disease symptoms. |
-- **🍇 Grape Detection** (YOLOv8-Nano): Isolates grape clusters in the canopy to prepare physical geometry datasets.
+EdgeVine’s non-invasive Computer Vision pipeline leverages multi-stage deep learning to perform real-time phytosanitary diagnostics and precise crop-yield estimations.
 
+### 🧠 4.1. Two-Stage YOLO Architecture
 
-### 4.1. Yield Estimation (Mathematical Model)
-EdgeVine translates 2D bounding boxes into physical liquid volume:
+The pipeline processes high-resolution field images through two parallel neural network tracks:
 
-1. **Spatial Scale Ratio ($S$)**: Converts camera dimensions into physical space based on focal length ($f$), sensor width ($S_w$), row distance ($D$), and image resolution ($I_{\text{img}}$):
+1. **🍃 Canopy Diagnostics (Two-Stage Classifier)**
+   * **Stage 1 (Detection - YOLOv8-Medium):** Automatically detects and isolates individual grapevine leaves, cropping bounding boxes from the raw frame.
+   * **Stage 2 (Classification - YOLOv8-Nano-cls):** Processes each cropped leaf to determine its physiological health status:
 
-$$S = \frac{D \cdot S_w}{f \cdot I_{\text{img}}}$$
+     | Class | Indicator | Visual Diagnostic |
+     | :---: | :--- | :--- |
+     | 🔴 **Disease** | High Risk | Visible active pathology (e.g., Leaf Blight, Black Rot). |
+     | 🟢 **Healthy** | Optimal | Pristine chlorophyll signature, intact vascular structure. |
+     | 🟠 **Stress** | Warning | Severe water deficit, heat stress, or early wood disease symptoms. |
 
-2. **Physical Dimensions**: The physical width ($w_i$) and height ($h_i$) of the grape cluster $i$ in millimeters are derived by scaling the bounding box pixel dimensions ($W_{i,\text{px}}$ and $H_{i,\text{px}}$):
+2. **🍇 Yield Assessment (YOLOv8-Nano):** Detects and segments active grape clusters within the canopy, passing their physical pixel coordinates ($W_{\text{px}}, H_{\text{px}}$) to the volumetric math engine.
 
-$$w_i = W_{i,\text{px}} \cdot S$$
+### 📐 4.2. Yield Estimation (Mathematical Model)
 
-$$h_i = H_{i,\text{px}} \cdot S$$
+EdgeVine translates 2D pixel bounding boxes into physical liquid volume estimates of wine through a 4-step geometric pipeline:
 
-3. **Biomass Mass Estimation**: Approximates cluster depth as 10% of its physical area. Multiplying by the biological grape density ($\rho_{\text{grape}} = 0.8\text{ g/cm}^3$) yields the estimated cluster weight in grams ($m_i$):
+1. **Spatial Scale Ratio ($S$):** Converts camera pixel dimensions into physical space based on focal length ($f$), sensor width ($S_w$), row distance ($D$), and image resolution ($I_{\text{img}}$):
 
-$$ m_i = (w_i \cdot h_i \cdot 0.1) \cdot \rho_{\text{grape}}$$
+    $$S = \frac{D \cdot S_w}{f \cdot I_{\text{img}}}$$
 
-4. **Wine Yield**: The combined weight of all $N$ clusters is scaled by the chemical yield conversion efficiency ($\eta_{\text{yield}} = 0.7$) to estimate the total harvest in liters ($L$):
+2. **Physical Dimensions ($w_i, h_i$):**
+Derives the actual physical width ($w_i$) and height ($h_i$) of the grape cluster $i$ in millimeters by scaling its pixel bounding box ($W_{i,\text{px}}, H_{i,\text{px}}$):
 
-$$L = \left(\frac{\sum_{i=1}^{N}m_i}{1000}\right) \cdot \eta_{\text{yield}}$$
+    $$w_i = W_{i,\text{px}} \cdot S$$
 
-> **Calibration:** Fluctuations in row distance ($D$) are mitigated by dynamically calculating uncertainty ranges that is expressed in percentage in settings (default 10%) using a customizable margin.
+    $$h_i = H_{i,\text{px}} \cdot S$$
+
+3. **Biomass Mass Estimation ($m_i$):** Approximates the cluster's physical depth as 10% of its physical area. Multiplying by the biological grape density ($\rho_{\text{grape}} = 0.8\text{ g/cm}^3$) yields the estimated cluster weight in grams:
+
+    $$ m_i = (w_i \cdot h_i \cdot 0.1) \cdot \rho_{\text{grape}}$$
+
+4. **Final Wine Yield ($L$):** Aggregates the weight of all $N$ detected clusters, scaling the total biomass by the chemical wine conversion efficiency ($\eta_{\text{yield}} = 0.7$) to forecast the yield in liters:
+
+    $$L = \left(\frac{\sum_{i=1}^{N}m_i}{1000}\right) \cdot \eta_{\text{yield}}$$
+
+> [!NOTE]
+> **Dynamic Calibration:**
+> Natural depth fluctuations caused by row distance variance ($D$) are dynamically mitigated. The Settings Console allows winemakers to configure an uncertainty margin (default `±10%`), which automatically projects a safety buffer for the final yield estimate.
 
 
 ---
@@ -180,7 +192,7 @@ EdgeVine doesn't just monitor the present—it anticipates the future. By feedin
 
 > [!TIP]
 > **Model Development & Testing:**
-> The complete training pipeline, parameter tuning, and exploratory data analysis (EDA) for these forecasting models are documented in the experimental Jupyter Notebook: [prophet_analysis.ipynb](Predictions/prophet_analysis.ipynb).
+> The complete training pipeline, parameter tuning, and exploratory data analysis (EDA) for these forecasting models are documented in the experimental [Jupyter Notebook](Predictions/prophet_analysis.ipynb).
 
 ### 📈 5.1. Soil Moisture (72h Forecast)
 Predicts soil dryness trends to optimize automated irrigation schedules and prevent hydric stress.
