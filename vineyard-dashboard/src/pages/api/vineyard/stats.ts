@@ -7,6 +7,7 @@ import {
   roundTo,
   toFiniteNumber
 } from '../../../lib/telemetry';
+import { DEFAULT_VISION_SETTINGS, normalizeVisionSettings } from '../../../lib/visionSettings';
 
 type TelemetryHistoryRow = Record<string, unknown> & {
   time: string;
@@ -66,22 +67,37 @@ export const GET: APIRoute = async ({ url }) => {
       FROM latest_readings
     `);
 
-    // 2. Analisi Salute GRANULARE (Conteggio Foglie AI)
-    const healthData = await sql<any>(`
-      WITH latest_zone_status AS (
+    const sectorStats = await sql<any>(`
+      WITH latest_readings AS (
         SELECT DISTINCT ON (monitoring_node_id)
-          leaf_healthy_count, 
-          leaf_stress_count, 
-          leaf_disease_count,
-          monitoring_node_id
-        FROM computer_vision_data
+          monitoring_node_id,
+          temperature,
+          humidity,
+          ${moisturePercent} as moisture
+        FROM sensor_measurements
         ORDER BY monitoring_node_id, timestamp DESC
       )
+      SELECT
+        vs.id,
+        vs.name,
+        COUNT(mn.id) as total_nodes,
+        AVG(lr.temperature) as avg_temp,
+        AVG(lr.humidity) as avg_hum,
+        AVG(lr.moisture) as avg_moist
+      FROM vineyard_sector vs
+      LEFT JOIN monitoring_node mn ON mn.sector_id = vs.id
+      LEFT JOIN latest_readings lr ON lr.monitoring_node_id = mn.id
+      GROUP BY vs.id, vs.name, vs.display_order
+      ORDER BY vs.display_order ASC, vs.name ASC
+    `);
+
+    // 2. Analisi Salute GRANULARE (Conteggio Foglie AI)
+    const healthData = await sql<any>(`
       SELECT 
-        SUM(leaf_healthy_count) as total_healthy,
-        SUM(leaf_stress_count) as total_stress,
-        SUM(leaf_disease_count) as total_disease
-      FROM latest_zone_status
+        COALESCE(SUM(leaf_healthy_count), 0) as total_healthy,
+        COALESCE(SUM(leaf_stress_count), 0) as total_stress,
+        COALESCE(SUM(leaf_disease_count), 0) as total_disease
+      FROM computer_vision_data
     `);
 
     // 3. Storico DINAMICO
@@ -98,14 +114,12 @@ export const GET: APIRoute = async ({ url }) => {
     `, [grouping, dateFormat]);
 
     // Fetch uncertainty setting from db
-    let uncertainty = 10;
+    let uncertainty = DEFAULT_VISION_SETTINGS.depth_uncertainty_pct;
     try {
       const setRes = await sql<any>(`SELECT value FROM app_settings WHERE key = 'vision'`);
       if (setRes.rows.length > 0) {
         const val = typeof setRes.rows[0].value === 'string' ? JSON.parse(setRes.rows[0].value) : setRes.rows[0].value;
-        if (val && typeof val.depth_uncertainty_pct === 'number') {
-          uncertainty = val.depth_uncertainty_pct;
-        }
+        uncertainty = normalizeVisionSettings(val).depth_uncertainty_pct;
       }
     } catch(e) { console.warn("Failed to fetch settings, using default uncertainty"); }
 
@@ -173,6 +187,14 @@ export const GET: APIRoute = async ({ url }) => {
         hum: normalizePercent(currentStats.rows[0]?.avg_hum) ?? 0,
         moist: normalizeMoisturePercent(currentStats.rows[0]?.avg_moist) ?? 0
       },
+      sectorTelemetry: sectorStats.rows.map((row: any) => ({
+        id: row.id,
+        name: row.name,
+        nodes: parseInt(row.total_nodes || 0),
+        temp: normalizeTemperature(row.avg_temp),
+        hum: normalizePercent(row.avg_hum),
+        moist: normalizeMoisturePercent(row.avg_moist)
+      })),
       health: {
         healthy: leafHealthy,
         stress: leafStress,

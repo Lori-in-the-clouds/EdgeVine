@@ -173,8 +173,8 @@ export const POST: APIRoute = async ({ request }) => {
       UPDATE vineyard 
       SET 
         area = $1,
-        latitude = $2,
-        longitude = $3,
+        latitude = COALESCE($2, latitude, 0.0),
+        longitude = COALESCE($3, longitude, 0.0),
         total_row_meters = $4,
         total_rows_count = $5,
         sectors_count = $6,

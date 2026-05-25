@@ -126,7 +126,7 @@ export function DashboardContainer() {
               </div>
               <div className="flex flex-col">
                 <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Temperature</span>
-                <span className="text-xl font-black text-white tracking-tighter">{weather.temp !== null ? `${weather.temp}°C` : '--'}</span>
+                <span className="text-xl font-black text-white tracking-tighter">{!isEmpty && weather.temp !== null ? `${weather.temp}°C` : '--'}</span>
               </div>
             </div>
             <div className="h-10 w-px bg-white/5 mx-2"></div>
@@ -136,7 +136,7 @@ export function DashboardContainer() {
               </div>
               <div className="flex flex-col">
                 <span className="text-[9px] font-black text-stone-500 uppercase tracking-widest">Local Humidity</span>
-                <span className="text-xl font-black text-white tracking-tighter">{weather.hum !== null ? `${weather.hum}%` : '--'}</span>
+                <span className="text-xl font-black text-white tracking-tighter">{!isEmpty && weather.hum !== null ? `${weather.hum}%` : '--'}</span>
               </div>
             </div>
           </div>

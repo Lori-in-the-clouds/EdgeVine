@@ -42,3 +42,8 @@ export async function sql<T extends QueryRow>(
 ): Promise<SqlResult<T>> {
   return pool.query<T>(text, params);
 }
+
+// Start background prediction worker to process pending AI queue
+import { startPredictionWorker } from './worker';
+startPredictionWorker();
+

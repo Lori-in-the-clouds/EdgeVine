@@ -10,7 +10,8 @@ services:
       - "${POSTGRES_HOST_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ./postgres/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
     restart: unless-stopped
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\" || exit 1" ]
@@ -50,7 +51,6 @@ services:
     ports:
       - "${DASHBOARD_HOST_PORT}:${DASHBOARD_PORT}"
     restart: unless-stopped
-
 
 volumes:
   postgres_data:

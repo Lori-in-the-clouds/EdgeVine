@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import {
   Camera, Filter, Wine, Thermometer,
-  Droplets, Sprout, Map as MapIcon, Plus, CheckCircle, AlertTriangle
+  Droplets, Sprout, Map as MapIcon, Plus, CheckCircle, AlertTriangle, Loader2
 } from 'lucide-react';
 
 type TelemetryPoint = {
@@ -24,6 +24,15 @@ type LatestStats = {
   totalWineMax: number;
   confidence: number;
   leavesAnalyzed: number;
+  temp: number | null;
+  hum: number | null;
+  moist: number | null;
+};
+
+type SectorTelemetry = {
+  id: string;
+  name: string;
+  nodes: number;
   temp: number | null;
   hum: number | null;
   moist: number | null;
@@ -156,9 +165,35 @@ function ActiveExpectedDot(props: any) {
   );
 }
 
+function CenteredAxisLabel(props: any) {
+  const { viewBox, value, isRight = false, offset = 12 } = props;
+  const { x, y, width, height } = viewBox;
+  // Offset horizontally within the axis bounding box
+  const cx = isRight ? x + width - offset : x + offset;
+  // Perfectly center vertically within the axis
+  const cy = y + height / 2;
+  const rot = isRight ? 90 : -90;
+  
+  return (
+    <text
+      x={cx}
+      y={cy}
+      transform={`rotate(${rot} ${cx} ${cy})`}
+      textAnchor="middle"
+      fill="#596372"
+      fontSize={10}
+      fontWeight={800}
+      letterSpacing={0.5}
+    >
+      {value}
+    </text>
+  );
+}
+
 export function DashboardStats() {
   const [history, setHistory] = useState<TelemetryPoint[]>([]);
   const [latestStats, setLatestStats] = useState<LatestStats | null>(null);
+  const [sectorTelemetry, setSectorTelemetry] = useState<SectorTelemetry[]>([]);
   const [imageLimit, setImageLimit] = useState(4);
   const [recentImages, setRecentImages] = useState<any[]>([]);
   const [isConfigured, setIsConfigured] = useState(true);
@@ -207,6 +242,7 @@ export function DashboardStats() {
             const d = statsData.data;
             const leafTotal = d.health.healthy + d.health.stress + d.health.disease || 1;
             setHistory(d.chartData);
+            setSectorTelemetry(d.sectorTelemetry || []);
             setRecentImages(d.recentCaptures || []);
             setLatestStats({
               safe: Math.round((d.health.healthy / leafTotal) * 100),
@@ -237,6 +273,48 @@ export function DashboardStats() {
 
     fetchData();
   }, [timeRange]);
+
+  // 3. Auto-poll if there are any pending analyses in recentImages
+  useEffect(() => {
+    const hasPending = recentImages.some((img: any) => 
+      img.health_status === 'Pending Analysis' || img.health_status === 'Analyzing...'
+    );
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      const fetchPollData = async () => {
+        try {
+          const statsRes = await fetch(`/api/vineyard/stats?range=${timeRange}`);
+          const statsData = await statsRes.json();
+          if (statsData.success) {
+            const d = statsData.data;
+            const leafTotal = d.health.healthy + d.health.stress + d.health.disease || 1;
+            setHistory(d.chartData);
+            setSectorTelemetry(d.sectorTelemetry || []);
+            setRecentImages(d.recentCaptures || []);
+            setLatestStats({
+              safe: Math.round((d.health.healthy / leafTotal) * 100),
+              stress: Math.round((d.health.stress / leafTotal) * 100),
+              disease: Math.round((d.health.disease / leafTotal) * 100),
+              totalWine: d.production.estimated_liters,
+              totalWineMin: d.production.estimated_liters_min,
+              totalWineMax: d.production.estimated_liters_max,
+              confidence: d.production.confidence,
+              leavesAnalyzed: d.production.leaves_analyzed,
+              temp: d.global.temp,
+              hum: d.global.hum,
+              moist: d.global.moist
+            });
+          }
+        } catch (e) {
+          console.error("Failed to poll stats", e);
+        }
+      };
+      fetchPollData();
+    }, 3000); // Poll every 3 seconds while pending
+
+    return () => clearInterval(interval);
+  }, [recentImages, timeRange]);
 
   // Removed mock images logic
 
@@ -290,29 +368,59 @@ export function DashboardStats() {
           </div>
         </div>
 
-        {/* SECTION 1.1: TELEMETRY KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
-            <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Thermometer className="h-8 w-8" /></div>
-            <div className="flex flex-col">
-              <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Temperature</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.temp, '°C')}</span>
+        {/* SECTION 1.1: SECTOR TELEMETRY */}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          {sectorTelemetry.length > 0 ? sectorTelemetry.map((sector) => (
+            <div key={sector.id} className="bg-white rounded-[2.5rem] p-6 shadow-ambient border border-stone-100">
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <div>
+                  <p className="text-[10px] font-black text-[#228B22] uppercase tracking-[0.25em] mb-1">Sector Telemetry</p>
+                  <h3 className="text-2xl font-manrope font-black text-stone-800 tracking-tight">{sector.name}</h3>
+                </div>
+                <span className="rounded-full bg-stone-100 px-3 py-1 text-[9px] font-black text-stone-500 uppercase tracking-widest">
+                  {sector.nodes} {sector.nodes === 1 ? 'Node' : 'Nodes'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-stone-50 border border-stone-100 p-4">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-rose-50 text-rose-500">
+                    <Thermometer className="h-5 w-5" />
+                  </div>
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Temperature</p>
+                  <span className="text-3xl font-manrope font-black text-stone-800">{formatMetric(sector.temp, '°C')}</span>
+                </div>
+
+                <div className="rounded-2xl bg-stone-50 border border-stone-100 p-4">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-[#228B22]">
+                    <Droplets className="h-5 w-5" />
+                  </div>
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Air Humidity</p>
+                  <span className="text-3xl font-manrope font-black text-stone-800">{formatMetric(sector.hum, '%')}</span>
+                </div>
+
+                <div className="rounded-2xl bg-stone-50 border border-stone-100 p-4">
+                  <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-500">
+                    <Sprout className="h-5 w-5" />
+                  </div>
+                  <p className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">Soil Moisture</p>
+                  <span className="text-3xl font-manrope font-black text-stone-800">{formatMetric(sector.moist, '%')}</span>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
-            <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Droplets className="h-8 w-8" /></div>
-            <div className="flex flex-col">
-              <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Air Humidity</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.hum, '%')}</span>
+          )) : (
+            <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-stone-100 rounded-2xl flex items-center justify-center text-stone-400">
+                  <Sprout className="h-6 w-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-manrope font-black text-stone-800">No Sector Telemetry</h3>
+                  <p className="text-sm font-medium text-stone-400">Latest readings will appear after sector nodes report data.</p>
+                </div>
+              </div>
             </div>
-          </div>
-          <div className="bg-white rounded-[2.5rem] p-8 shadow-ambient border border-stone-100 flex items-center gap-6">
-            <div className="w-16 h-16 bg-[#228B22]/10 rounded-full flex items-center justify-center text-[#228B22]"><Sprout className="h-8 w-8" /></div>
-            <div className="flex flex-col">
-              <p className="text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] mb-1">Soil Moisture</p>
-              <span className="text-4xl font-manrope font-black text-stone-800">{formatMetric(latestStats?.moist, '%')}</span>
-            </div>
-          </div>
+          )}
         </div>
 
         {/* SECTION 1.2: TELEMETRY HISTORY */}
@@ -352,23 +460,23 @@ export function DashboardStats() {
                   yAxisId="percentage"
                   orientation="left"
                   domain={[0, 100]}
-                  width={54}
+                  width={60}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(value) => `${value}%`}
+                  tickFormatter={(value) => `${Math.round(value)}%`}
                   tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }}
-                  label={{ value: 'Percentage (%)', angle: -90, position: 'insideLeft', fill: '#596372', fontSize: 11, fontWeight: 800 }}
+                  label={<CenteredAxisLabel value="Percentage (%)" offset={12} />}
                 />
                 <YAxis
                   yAxisId="temperature"
                   orientation="right"
                   domain={['dataMin - 2', 'dataMax + 2']}
-                  width={58}
+                  width={65}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(value) => `${value}°`}
+                  tickFormatter={(value) => `${Number(value).toFixed(1)}°`}
                   tick={{ fill: '#596372', fontSize: 10, fontWeight: 700 }}
-                  label={{ value: 'Temp (°C)', angle: 90, position: 'insideRight', fill: '#596372', fontSize: 11, fontWeight: 800 }}
+                  label={<CenteredAxisLabel value="Temp (°C)" isRight={true} offset={12} />}
                 />
                 <RechartsTooltip
                   formatter={formatTelemetryTooltip}
@@ -438,10 +546,18 @@ export function DashboardStats() {
 
                 <div className="h-[280px] w-full mt-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={predictions.temperature.forecast}>
+                    <LineChart data={predictions.temperature.forecast} margin={{ top: 12, right: 12, bottom: 15, left: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
                       <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={formatTimeWithPeriod} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dx={-10} domain={['auto', 'auto']} />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(value) => `${Number(value).toFixed(1)}°C`}
+                        width={75}
+                        tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }}
+                        label={<CenteredAxisLabel value="Temperature (°C)" offset={14} />}
+                        domain={['auto', 'auto']}
+                      />
                       <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={formatDateTimeWithPeriod} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
                       <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="lower" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#ef4444" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="upper" />} opacity={0.5} />
@@ -477,10 +593,18 @@ export function DashboardStats() {
 
                 <div className="h-[280px] w-full mt-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={predictions.moisture.forecast}>
+                    <LineChart data={predictions.moisture.forecast} margin={{ top: 12, right: 12, bottom: 15, left: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#94a3b8" opacity={0.5} />
                       <XAxis dataKey="ds" axisLine={false} tickLine={false} tickFormatter={formatTimeWithPeriod} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }} dx={-10} domain={['auto', 'auto']} />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(value) => `${Math.round(value)}%`}
+                        width={65}
+                        tick={{ fill: '#596372', fontSize: 10, fontWeight: 600 }}
+                        label={<CenteredAxisLabel value="Moisture (%)" offset={14} />}
+                        domain={['auto', 'auto']}
+                      />
                       <RechartsTooltip formatter={(value: any) => typeof value === 'number' ? value.toFixed(2) : value} labelFormatter={formatDateTimeWithPeriod} contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '12px' }} />
                       <Line type="monotone" dataKey="yhat_lower" name="Min Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="lower" />} opacity={0.5} />
                       <Line type="monotone" dataKey="yhat_upper" name="Max Bounds" stroke="#3b82f6" strokeWidth={1} strokeDasharray="5 5" dot={false} activeDot={<ActiveBoundDot type="upper" />} opacity={0.5} />
@@ -599,17 +723,18 @@ function VisionAnalyzedCard({ img }: { img: any }) {
   const healthStatus = img.health_status || 'Not analyzed';
   const grapeCount = img.grape_count ?? '--';
   const liters = formatNumber(img.estimated_liters);
+  const isPending = !img.processed_image_url || img.health_status === 'Pending Analysis' || img.health_status === 'Analyzing...';
   const hasAnalysis = Boolean(
     img.processed_image_url
-    || img.health_status
-    || (img.grape_count !== null && img.grape_count !== undefined)
+    && img.health_status !== 'Pending Analysis'
+    && img.health_status !== 'Analyzing...'
   );
 
   return (
     <>
       <div
-        onClick={() => setShowModal(true)}
-        className="group flex flex-col bg-white rounded-[2.5rem] overflow-hidden border border-stone-100 shadow-sm hover:shadow-2xl transition-all duration-700 hover:-translate-y-2 cursor-pointer"
+        onClick={() => !isPending && setShowModal(true)}
+        className={`group flex flex-col bg-white rounded-[2.5rem] overflow-hidden border border-stone-100 shadow-sm hover:shadow-2xl transition-all duration-700 ${isPending ? 'cursor-wait opacity-90' : 'cursor-pointer hover:-translate-y-2'}`}
       >
         <div className="relative aspect-[4/5] overflow-hidden bg-stone-900 group">
           {img.grape_count === -1 ? (
@@ -623,16 +748,42 @@ function VisionAnalyzedCard({ img }: { img: any }) {
               alt={img.sensor_name}
               className="w-full h-full object-cover transition-all duration-1000 group-hover:scale-105"
               onError={(e) => {
-                (e.target as HTMLImageElement).src = fallbackImage;
+                const target = e.target as HTMLImageElement;
+                if (img.processed_image_url && target.src.endsWith(img.processed_image_url) && img.image_url) {
+                  target.src = img.image_url;
+                } else {
+                  target.src = fallbackImage;
+                }
               }}
             />
+          )}
+          {/* Loader Overlay for Pending Analysis */}
+          {isPending && (
+            <div className="absolute inset-0 bg-stone-950/80 backdrop-blur-sm flex flex-col items-center justify-center text-white gap-3 z-10">
+              <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400 animate-pulse">
+                {img.health_status === 'Analyzing...' ? 'Analyzing Leaf/Grape...' : 'AI Queue: Pending...'}
+              </span>
+            </div>
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
           <div className="absolute top-4 left-4 px-3 py-1 bg-white/10 backdrop-blur-md rounded-lg border border-white/20">
             <p className="text-[8px] font-black text-white uppercase tracking-widest">{img.sensor_name}</p>
           </div>
-          <div className="absolute bottom-4 left-4">
-            {hasAnalysis && img.grape_count !== -1 ? (
+          <div className="absolute bottom-4 left-4 z-20">
+            {isPending ? (
+              img.health_status === 'Analyzing...' ? (
+                <span className="flex items-center gap-2 text-[9px] font-black text-amber-500 bg-white/95 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-amber-500/20 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span>
+                  Analyzing...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2 text-[9px] font-black text-sky-500 bg-white/95 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-sky-500/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+                  In Queue
+                </span>
+              )
+            ) : hasAnalysis && img.grape_count !== -1 ? (
               <span className="flex items-center gap-2 text-[9px] font-black text-[#228B22] bg-white/95 px-3 py-1.5 rounded-full uppercase tracking-widest shadow-xl border border-emerald-500/10">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#228B22]"></span>
                 Analysis Saved
@@ -658,16 +809,14 @@ function VisionAnalyzedCard({ img }: { img: any }) {
                 className="w-full h-full object-contain transition-all duration-1000 scale-100"
                 alt="Enlarged analysis"
                 onError={(e) => {
-                  (e.target as HTMLImageElement).src = fallbackImage;
+                  const target = e.target as HTMLImageElement;
+                  if (img.processed_image_url && target.src.endsWith(img.processed_image_url) && img.image_url) {
+                    target.src = img.image_url;
+                  } else {
+                    target.src = fallbackImage;
+                  }
                 }}
               />
-              {hasAnalysis && (
-                <div className="absolute top-8 left-8 flex gap-3">
-                  <div className="bg-[#228B22] text-white px-5 py-2 rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl flex items-center gap-2">
-                    <CheckCircle size={14} /> Database Entry
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* AI Control Panel */}

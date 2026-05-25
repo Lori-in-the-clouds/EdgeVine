@@ -78,7 +78,7 @@ export const GET: APIRoute = async () => {
         temperature: temperature === null ? null : roundTo(temperature, 1),
         humidity: normalizePercent(row.humidity),
         moisture: normalizeMoisturePercent(row.moisture),
-        leafCount: leafCount || Math.floor(Math.random() * 50) + 100, // Fallback random only if DB is empty
+        leafCount,
         predictedWineLiters: row.estimated_liters || 0
       }
     });

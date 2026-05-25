@@ -2,43 +2,46 @@
 -- Vineyard, sector, and monitoring-node records are mirrored from the local database.
 -- Sensor measurements are generated hourly from 2025-01-01 00:00 until the current hour.
 
-INSERT INTO vineyard (
-    id,
-    name,
-    owner,
-    altitude,
-    latitude,
-    longitude,
-    province,
-    region,
-    address,
-    email,
-    name_vineyard,
-    area,
-    total_row_meters,
-    total_rows_count,
-    sectors_count,
-    sector_names
-)
+INSERT INTO
+    vineyard (
+        id,
+        name,
+        owner,
+        altitude,
+        latitude,
+        longitude,
+        province,
+        region,
+        address,
+        email,
+        name_vineyard,
+        area,
+        total_row_meters,
+        total_rows_count,
+        sectors_count,
+        sector_names
+    )
 VALUES (
-    1,
-    'Ca'' Selva',
-    'S.B.',
-    200,
-    46.1491,
-    12.8374,
-    'Pordenone / Pordenon',
-    'Friuli-Venezia Giulia',
-    'Strada di Sequals - Sequals / Secuals',
-    NULL,
-    'Vineyard Toscana',
-    '88,007 m²',
-    33975,
-    125,
-    2,
-    'Sector 1, Sector 2'
-)
-ON CONFLICT (id) DO UPDATE SET
+        1,
+        'Ca'' Selva',
+        'S.B.',
+        200,
+        46.1491,
+        12.8374,
+        'Pordenone / Pordenon',
+        'Friuli-Venezia Giulia',
+        'Strada di Sequals - Sequals / Secuals',
+        NULL,
+        'Vineyard Toscana',
+        '88,007 m²',
+        33975,
+        125,
+        2,
+        'Sector 1, Sector 2'
+    )
+ON CONFLICT (id) DO
+UPDATE
+SET
     name = EXCLUDED.name,
     owner = EXCLUDED.owner,
     altitude = EXCLUDED.altitude,
@@ -57,49 +60,53 @@ ON CONFLICT (id) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP;
 
 DELETE FROM monitoring_node existing
-WHERE existing.vineyard_id = 1
-  AND NOT EXISTS (
-      SELECT 1
-      FROM (
-          VALUES
-              (1, 1, 'S-01'),
-              (2, 2, 'S-02')
-      ) AS seed_node(id, number, external_id)
-      WHERE seed_node.id = existing.id
-        AND seed_node.number = existing.number
-        AND seed_node.external_id = existing.external_id
-  );
+WHERE
+    existing.vineyard_id = 1
+    AND NOT EXISTS (
+        SELECT 1
+        FROM (
+                VALUES (1, 1, 'S-01'), (2, 2, 'S-02')
+            ) AS seed_node (id, number, external_id)
+        WHERE
+            seed_node.id = existing.id
+            AND seed_node.number = existing.number
+            AND seed_node.external_id = existing.external_id
+    );
 
 DELETE FROM vineyard_sector existing
-WHERE existing.vineyard_id = 1
-  AND NOT EXISTS (
-      SELECT 1
-      FROM (
-          VALUES
-              ('1ea6315c-5180-4653-88f1-4499e0c9f01a'),
-              ('88ed9a55-58c2-402d-9d49-54e775fbe698')
-      ) AS seed_sector(id)
-      WHERE seed_sector.id = existing.id
-  );
+WHERE
+    existing.vineyard_id = 1
+    AND NOT EXISTS (
+        SELECT 1
+        FROM (
+                VALUES (
+                        '1ea6315c-5180-4653-88f1-4499e0c9f01a'
+                    ), (
+                        '88ed9a55-58c2-402d-9d49-54e775fbe698'
+                    )
+            ) AS seed_sector (id)
+        WHERE
+            seed_sector.id = existing.id
+    );
 
-INSERT INTO vineyard_sector (
-    id,
-    vineyard_id,
-    name,
-    perimeter,
-    rows,
-    row_orientation,
-    row_spacing,
-    target_row_count,
-    show_rows,
-    color_theme,
-    display_order,
-    area_square_meters,
-    total_row_meters,
-    row_count
-)
-VALUES
-    (
+INSERT INTO
+    vineyard_sector (
+        id,
+        vineyard_id,
+        name,
+        perimeter,
+        rows,
+        row_orientation,
+        row_spacing,
+        target_row_count,
+        show_rows,
+        color_theme,
+        display_order,
+        area_square_meters,
+        total_row_meters,
+        row_count
+    )
+VALUES (
         '1ea6315c-5180-4653-88f1-4499e0c9f01a',
         1,
         'Sector 1',
@@ -1977,7 +1984,9 @@ VALUES
         14219.312861962413,
         48
     )
-ON CONFLICT (id) DO UPDATE SET
+ON CONFLICT (id) DO
+UPDATE
+SET
     vineyard_id = EXCLUDED.vineyard_id,
     name = EXCLUDED.name,
     perimeter = EXCLUDED.perimeter,
@@ -1993,20 +2002,40 @@ ON CONFLICT (id) DO UPDATE SET
     row_count = EXCLUDED.row_count,
     updated_at = CURRENT_TIMESTAMP;
 
-INSERT INTO monitoring_node (
-    id,
-    vineyard_id,
-    sector_id,
-    number,
-    external_id,
-    name,
-    latitude,
-    longitude
-)
-VALUES
-    (1, 1, '88ed9a55-58c2-402d-9d49-54e775fbe698', 1, 'S-01', 'S-01', 46.14895584382494, 12.837132811546327),
-    (2, 1, '1ea6315c-5180-4653-88f1-4499e0c9f01a', 2, 'S-02', 'S-02', 46.150241700856, 12.836177945137026)
-ON CONFLICT (id) DO UPDATE SET
+INSERT INTO
+    monitoring_node (
+        id,
+        vineyard_id,
+        sector_id,
+        number,
+        external_id,
+        name,
+        latitude,
+        longitude
+    )
+VALUES (
+        1,
+        1,
+        '88ed9a55-58c2-402d-9d49-54e775fbe698',
+        1,
+        'S-01',
+        'S-01',
+        46.14895584382494,
+        12.837132811546327
+    ),
+    (
+        2,
+        1,
+        '1ea6315c-5180-4653-88f1-4499e0c9f01a',
+        2,
+        'S-02',
+        'S-02',
+        46.150241700856,
+        12.836177945137026
+    )
+ON CONFLICT (id) DO
+UPDATE
+SET
     vineyard_id = EXCLUDED.vineyard_id,
     sector_id = EXCLUDED.sector_id,
     number = EXCLUDED.number,
@@ -2016,69 +2045,287 @@ ON CONFLICT (id) DO UPDATE SET
     longitude = EXCLUDED.longitude,
     updated_at = CURRENT_TIMESTAMP;
 
-WITH hourly_samples AS (
-    SELECT
-        node.id AS monitoring_node_id,
-        node.vineyard_id,
-        sample.timestamp,
-        node.number AS node_number,
-        EXTRACT(HOUR FROM sample.timestamp)::integer AS hour_of_day,
-        EXTRACT(DOY FROM sample.timestamp)::integer AS day_of_year
-    FROM monitoring_node node
-    CROSS JOIN generate_series(
-        TIMESTAMP '2025-01-01 00:00:00',
-        date_trunc('hour', NOW()),
-        INTERVAL '1 hour'
-    ) AS sample(timestamp)
-    WHERE node.vineyard_id = 1
-      AND node.id IN (1, 2)
-)
-INSERT INTO sensor_measurements (
-    monitoring_node_id,
-    vineyard_id,
-    timestamp,
-    temperature,
-    humidity,
-    moisture
-)
+WITH
+    hourly_samples AS (
+        SELECT
+            node.id AS monitoring_node_id,
+            node.vineyard_id,
+            sample.timestamp,
+            node.number AS node_number,
+            EXTRACT(
+                HOUR
+                FROM sample.timestamp
+            )::integer AS hour_of_day,
+            EXTRACT(
+                DOY
+                FROM sample.timestamp
+            )::integer AS day_of_year
+        FROM monitoring_node node
+            CROSS JOIN generate_series(
+                date_trunc(
+                    'hour', NOW() - INTERVAL '1 year'
+                ), date_trunc('hour', NOW()), INTERVAL '1 hour'
+            ) AS sample (timestamp)
+        WHERE
+            node.vineyard_id = 1
+            AND node.id IN (1, 2)
+    )
+INSERT INTO
+    sensor_measurements (
+        monitoring_node_id,
+        vineyard_id,
+        timestamp,
+        temperature,
+        humidity,
+        moisture
+    )
 SELECT
     sample.monitoring_node_id,
     sample.vineyard_id,
     sample.timestamp,
-    round((
-        18
-        + 9 * sin((sample.hour_of_day - 7) * pi() / 12)
-        + 5 * sin((sample.day_of_year - 172) * 2 * pi() / 365)
-        + sample.node_number * 0.35
-    )::numeric, 2)::float8 AS temperature,
-    round((
-        62
-        - 14 * sin((sample.hour_of_day - 7) * pi() / 12)
-        - 6 * sin((sample.day_of_year - 172) * 2 * pi() / 365)
-        + sample.node_number * 0.4
-    )::numeric, 2)::float8 AS humidity,
-    round((
-        34
-        + 8 * sin((sample.day_of_year + sample.node_number * 9) * 2 * pi() / 30)
-        - 4 * sin(sample.hour_of_day * pi() / 12)
-        - sample.node_number * 0.8
-    )::numeric, 2)::float8 AS moisture
+    round(
+        (
+            15 -- Base temperature
+            + 8 * sin(
+                (sample.hour_of_day - 6) * pi() / 12
+            ) -- Daily cycle
+            + 10 * sin(
+                (sample.day_of_year - 100) * 2 * pi() / 365
+            ) -- Yearly cycle
+            + 3 * sin(
+                sample.day_of_year * 2 * pi() / 7.3
+            ) -- Weather system variations
+            + 1.5 * sin(
+                sample.day_of_year * 2 * pi() / 21.5
+            ) -- Monthly variations
+            + sample.node_number * 0.35 + (random() - 0.5) * 1.5 -- Hourly micro-noise
+        )::numeric,
+        2
+    )::float8 AS temperature,
+    round(
+        (
+            65 -- Base humidity
+            - 15 * sin(
+                (sample.hour_of_day - 6) * pi() / 12
+            ) -- Daily cycle
+            - 10 * sin(
+                (sample.day_of_year - 100) * 2 * pi() / 365
+            ) -- Yearly cycle
+            + 8 * sin(
+                sample.day_of_year * 2 * pi() / 8.1
+            ) -- Synoptic variations
+            + sample.node_number * 0.4 + (random() - 0.5) * 4.0 -- Hourly micro-noise
+        )::numeric,
+        2
+    )::float8 AS humidity,
+    round(
+        (
+            40 -- Base moisture
+            + 15 * sin(
+                (
+                    sample.day_of_year + sample.node_number * 15
+                ) * 2 * pi() / 45
+            ) -- Seasonal slow variations
+            + 8 * sin(
+                sample.day_of_year * 2 * pi() / 11.4
+            ) -- Weather variations
+            - 2 * sin(
+                sample.hour_of_day * pi() / 12
+            ) -- Tiny daily evaporation variation
+            - sample.node_number * 0.8 + (random() - 0.5) * 2.5 -- Noise
+        )::numeric,
+        2
+    )::float8 AS moisture
 FROM hourly_samples sample
-WHERE NOT EXISTS (
-    SELECT 1
-    FROM sensor_measurements existing
-    WHERE existing.monitoring_node_id = sample.monitoring_node_id
-      AND existing.timestamp = sample.timestamp
-);
+WHERE
+    NOT EXISTS (
+        SELECT 1
+        FROM sensor_measurements existing
+        WHERE
+            existing.monitoring_node_id = sample.monitoring_node_id
+            AND existing.timestamp = sample.timestamp
+    );
 
 SELECT setval(
-    pg_get_serial_sequence('vineyard', 'id'),
-    COALESCE((SELECT MAX(id) FROM vineyard), 1),
+        pg_get_serial_sequence('vineyard', 'id'), COALESCE(
+            (
+                SELECT MAX(id)
+                FROM vineyard
+            ), 1
+        ), true
+    );
+
+SELECT setval(
+        pg_get_serial_sequence('monitoring_node', 'id'), COALESCE(
+            (
+                SELECT MAX(id)
+                FROM monitoring_node
+            ), 1
+        ), true
+    );
+
+-- Seed mock data for computer_vision_data with local images of grapes and vines
+-- and pre-calculated estimated liters, health status, and leaf counts.
+DELETE FROM computer_vision_data;
+
+INSERT INTO computer_vision_data (
+    monitoring_node_id,
+    vineyard_id,
+    sensor_measurement_id,
+    timestamp,
+    image_url,
+    processed_image_url,
+    grape_count,
+    health_status,
+    estimated_liters,
+    estimated_liters_min,
+    estimated_liters_max,
+    leaf_healthy_count,
+    leaf_stress_count,
+    leaf_disease_count
+)
+VALUES
+    (
+        1, 1, 
+        (SELECT id FROM sensor_measurements WHERE monitoring_node_id = 1 ORDER BY timestamp DESC LIMIT 1 OFFSET 3),
+        NOW() - INTERVAL '7 hours',
+        '/postgres/seed_images/test1.jpg',
+        NULL,
+        NULL,
+        'Pending Analysis',
+        NULL,
+        NULL,
+        NULL,
+        0,
+        0,
+        0
+    ),
+    (
+        2, 1,
+        (SELECT id FROM sensor_measurements WHERE monitoring_node_id = 2 ORDER BY timestamp DESC LIMIT 1 OFFSET 3),
+        NOW() - INTERVAL '6 hours',
+        '/postgres/seed_images/test2.jpg',
+        NULL,
+        NULL,
+        'Pending Analysis',
+        NULL,
+        NULL,
+        NULL,
+        0,
+        0,
+        0
+    ),
+    (
+        1, 1,
+        (SELECT id FROM sensor_measurements WHERE monitoring_node_id = 1 ORDER BY timestamp DESC LIMIT 1 OFFSET 2),
+        NOW() - INTERVAL '5 hours',
+        '/postgres/seed_images/test3.jpg',
+        NULL,
+        NULL,
+        'Pending Analysis',
+        NULL,
+        NULL,
+        NULL,
+        0,
+        0,
+        0
+    ),
+    (
+        2, 1,
+        (SELECT id FROM sensor_measurements WHERE monitoring_node_id = 2 ORDER BY timestamp DESC LIMIT 1 OFFSET 2),
+        NOW() - INTERVAL '4 hours',
+        '/postgres/seed_images/test4.jpg',
+        NULL,
+        NULL,
+        'Pending Analysis',
+        NULL,
+        NULL,
+        NULL,
+        0,
+        0,
+        0
+    ),
+    (
+        1, 1,
+        (SELECT id FROM sensor_measurements WHERE monitoring_node_id = 1 ORDER BY timestamp DESC LIMIT 1 OFFSET 1),
+        NOW() - INTERVAL '3 hours',
+        '/postgres/seed_images/test5.jpg',
+        NULL,
+        NULL,
+        'Pending Analysis',
+        NULL,
+        NULL,
+        NULL,
+        0,
+        0,
+        0
+    ),
+    (
+        2, 1,
+        (SELECT id FROM sensor_measurements WHERE monitoring_node_id = 2 ORDER BY timestamp DESC LIMIT 1 OFFSET 1),
+        NOW() - INTERVAL '2 hours',
+        '/postgres/seed_images/test6.jpg',
+        NULL,
+        NULL,
+        'Pending Analysis',
+        NULL,
+        NULL,
+        NULL,
+        0,
+        0,
+        0
+    ),
+    (
+        1, 1,
+        (SELECT id FROM sensor_measurements WHERE monitoring_node_id = 1 ORDER BY timestamp DESC LIMIT 1),
+        NOW() - INTERVAL '1 hour',
+        '/postgres/seed_images/test7.jpeg',
+        NULL,
+        NULL,
+        'Pending Analysis',
+        NULL,
+        NULL,
+        NULL,
+        0,
+        0,
+        0
+    ),
+    (
+        2, 1,
+        (SELECT id FROM sensor_measurements WHERE monitoring_node_id = 2 ORDER BY timestamp DESC LIMIT 1),
+        NOW(),
+        '/postgres/seed_images/test8.jpg',
+        NULL,
+        NULL,
+        'Pending Analysis',
+        NULL,
+        NULL,
+        NULL,
+        0,
+        0,
+        0
+    );
+
+SELECT setval(
+    pg_get_serial_sequence('computer_vision_data', 'id'),
+    COALESCE((SELECT MAX(id) FROM computer_vision_data), 1),
     true
 );
 
-SELECT setval(
-    pg_get_serial_sequence('monitoring_node', 'id'),
-    COALESCE((SELECT MAX(id) FROM monitoring_node), 1),
-    true
-);
+INSERT INTO app_settings (key, value)
+VALUES ('vision', '{
+    "depth_uncertainty_pct": 10,
+    "camera_params": {
+        "focal_length": 3.04,
+        "sensor_width": 3.68,
+        "distance": 2000
+    },
+    "inference_thresholds": {
+        "grape_confidence": 0.30,
+        "leaf_confidence": 0.35,
+        "disease_threshold": 0.90,
+        "stress_threshold": 0.40
+    }
+}'::jsonb)
+ON CONFLICT (key) DO UPDATE
+SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP;

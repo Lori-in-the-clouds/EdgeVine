@@ -179,13 +179,13 @@ Stores key/value dashboard settings.
 | Column | Dashboard use |
 | --- | --- |
 | `key` | Setting namespace. Currently `vision`. |
-| `value` | JSON setting body. Current shape: `{ "depth_uncertainty_pct": number }`. |
+| `value` | JSON setting body. Current shape: `{ "depth_uncertainty_pct": number, "camera_params": { "focal_length": number, "sensor_width": number, "distance": number }, "inference_thresholds": { "grape_confidence": number, "leaf_confidence": number, "disease_threshold": number } }`. |
 | `updated_at` | Internal timestamp. |
 
 Connected dashboard surfaces:
 
-- `/settings`: AI vision calibration slider.
-- `/api/vision/analyze`: passes uncertainty to the Python inference script.
+- `/settings`: AI vision calibration slider, camera-parameter controls, and inference-threshold controls.
+- `/api/vision/analyze`: passes uncertainty, camera parameters, and inference thresholds to the Python inference script.
 - `/api/vineyard/stats`: computes fallback yield uncertainty ranges.
 
 ## Saved in DB vs Not Saved

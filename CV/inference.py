@@ -3,18 +3,53 @@ import cv2
 import matplotlib.pyplot as plt
 import os
 
-camera_params = {
+DEFAULT_CAMERA_PARAMS = {
     'focal_length': 3.04,
     'sensor_width': 3.68,
     'distance': 2000
 }
+camera_params = DEFAULT_CAMERA_PARAMS.copy()
+DEFAULT_INFERENCE_THRESHOLDS = {
+    'grape_confidence': 0.30,
+    'leaf_confidence': 0.35,
+    'disease_threshold': 0.90,
+    'stress_threshold': 0.40
+}
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_GRAPE_PATH = os.path.join(BASE_DIR, 'train_grape_counting', 'weights', 'best.pt')
-LEAF_DISEASE_CLASSIFIER_PATH = os.path.join(BASE_DIR, 'train_leaf_disease_classifier_nano', 'weights', 'best.pt')
+LEAF_DISEASE_CLASSIFIER_PATH = os.path.join(BASE_DIR, 'train_leaf_disease_classifier_yolo11_large', 'weights', 'best.pt')
+
+def normalize_camera_params(camera_params=None):
+    params = DEFAULT_CAMERA_PARAMS.copy()
+    params.update(camera_params or {})
+
+    for key in ('focal_length', 'sensor_width', 'distance'):
+        try:
+            params[key] = float(params[key])
+        except (TypeError, ValueError):
+            raise ValueError(f"Camera parameter '{key}' must be numeric")
+
+        if params[key] <= 0:
+            raise ValueError(f"Camera parameter '{key}' must be greater than zero")
+
+    return params
+
+
+def normalize_confidence_threshold(value, name):
+    try:
+        threshold = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Inference threshold '{name}' must be numeric")
+
+    if not 0 <= threshold <= 1:
+        raise ValueError(f"Inference threshold '{name}' must be between 0 and 1")
+
+    return threshold
+
 
 class VineyardAnalyst:
-    def __init__(self, model_grape_path, model_disease_path, camera_params):
+    def __init__(self, model_grape_path, model_disease_path, camera_params=None):
         """
         Analizzatore del vigneto EdgeVine.
         Implementa una pipeline a DUE STADI per l'analisi fogliare:
@@ -36,9 +71,10 @@ class VineyardAnalyst:
             self.model_leaf_classifier = YOLO('yolov8n-cls.pt')
         
         # Parametri calibrazione fotocamera
-        self.focal_length = camera_params['focal_length']
-        self.sensor_width = camera_params['sensor_width']
-        self.distance = camera_params['distance']
+        normalized_camera_params = normalize_camera_params(camera_params)
+        self.focal_length = normalized_camera_params['focal_length']
+        self.sensor_width = normalized_camera_params['sensor_width']
+        self.distance = normalized_camera_params['distance']
         
         # Parametri conversione vino
         self.wine_yield = 0.7  
@@ -59,7 +95,19 @@ class VineyardAnalyst:
         width_real_mm = (self.distance * self.sensor_width) / self.focal_length
         return width_real_mm / 1000  # Conversione in metri
 
-    def run_inference(self, image_path, save_path, imgsz=640, print_prediction=True, grape_detection=True, disease_detection=True, disease_threshold=0.95):
+    def run_inference(
+        self,
+        image_path,
+        save_path,
+        imgsz=640,
+        print_prediction=True,
+        grape_detection=True,
+        disease_detection=True,
+        grape_confidence=DEFAULT_INFERENCE_THRESHOLDS['grape_confidence'],
+        leaf_confidence=DEFAULT_INFERENCE_THRESHOLDS['leaf_confidence'],
+        disease_threshold=DEFAULT_INFERENCE_THRESHOLDS['disease_threshold'],
+        stress_threshold=DEFAULT_INFERENCE_THRESHOLDS['stress_threshold']
+    ):
         """
         Esegue l'inferenza completa: rileva i grappoli e le foglie (due stadi), 
         ritaglia le foglie in memoria, le classifica, disegna le bounding box
@@ -68,6 +116,11 @@ class VineyardAnalyst:
         img_orig = cv2.imread(image_path)
         if img_orig is None:
             raise ValueError(f"Impossibile leggere l'immagine al percorso {image_path}")
+
+        grape_confidence = normalize_confidence_threshold(grape_confidence, 'grape_confidence')
+        leaf_confidence = normalize_confidence_threshold(leaf_confidence, 'leaf_confidence')
+        disease_threshold = normalize_confidence_threshold(disease_threshold, 'disease_threshold')
+        stress_threshold = normalize_confidence_threshold(stress_threshold, 'stress_threshold')
             
         h_orig, w_orig = img_orig.shape[:2]
         
@@ -79,13 +132,13 @@ class VineyardAnalyst:
         # 1. RILEVAMENTO GRAPPOLI
         results1 = None
         if grape_detection:
-            results1 = self.model_grape.predict(source=image_path, imgsz=imgsz, conf=0.25, verbose=False)
+            results1 = self.model_grape.predict(source=image_path, imgsz=imgsz, conf=grape_confidence, verbose=False)
             
         # 2. PIPELINE A DUE STADI PER LE FOGLIE
         results2 = None
         if disease_detection:
             # Stage 1: Rilevamento foglie (trova i contorni xyxy di ogni foglia)
-            leaf_results = self.model_leaf_detector.predict(source=img_orig, imgsz=imgsz, conf=0.35, verbose=False)
+            leaf_results = self.model_leaf_detector.predict(source=img_orig, imgsz=imgsz, conf=leaf_confidence, verbose=False)
             results2 = leaf_results
             
             # Se ci sono foglie rilevate dallo Stage 1, procediamo con il ritaglio e la classificazione Stage 2
@@ -106,19 +159,44 @@ class VineyardAnalyst:
                         continue
                         
                     # Stage 2: Classificazione della salute della singola foglia ritagliata
-                    cls_results = self.model_leaf_classifier.predict(source=crop, imgsz=224, verbose=False)
+                    cls_results = self.model_leaf_classifier.predict(source=crop, imgsz=256, verbose=False)
                     probs = cls_results[0].probs
-                    class_id = int(probs.top1)
-                    confidence = float(probs.top1conf)
-                    class_name = cls_results[0].names[class_id] # 'healthy', 'stress', 'disease'
+                    # Recupera le probabilità indipendenti per ogni classe
+                    healthy_idx = [k for k, v in cls_results[0].names.items() if v == 'healthy'][0]
+                    stress_idx = [k for k, v in cls_results[0].names.items() if v == 'stress'][0]
+                    disease_idx = [k for k, v in cls_results[0].names.items() if v == 'disease'][0]
                     
-                    # Mitigazione Falsi Positivi: se il modello predice 'disease' o 'stress' con confidenza inferiore
-                    # alla soglia di sicurezza, la consideriamo 'healthy' (foglia sana)
-                    if class_name in ['disease', 'stress'] and confidence < disease_threshold:
+                    prob_healthy = float(probs.data[healthy_idx])
+                    prob_stress = float(probs.data[stress_idx])
+                    prob_disease = float(probs.data[disease_idx])
+                    
+                    # Debug: Stampa le probabilità grezze estratte dall'IA per ciascuna classe
+                    print(f"[DEBUG Stage 2] Leaf -> Healthy: {prob_healthy:.4f}, Stress: {prob_stress:.4f}, Disease: {prob_disease:.4f}")
+                    
+                    # Logica a soglie con confronto attivo e fallback su sano (healthy):
+                    # 1. Controlla quali anomalie superano la propria soglia impostata dall'utente.
+                    disease_passed = prob_disease >= disease_threshold
+                    stress_passed = prob_stress >= stress_threshold
+                    
+                    # 2. Assegna la classe di conseguenza:
+                    if disease_passed and stress_passed:
+                        # Se entrambe superano la soglia, vince quella con probabilità grezza maggiore
+                        if prob_disease >= prob_stress:
+                            class_name = 'disease'
+                            confidence = prob_disease
+                        else:
+                            class_name = 'stress'
+                            confidence = prob_stress
+                    elif disease_passed:
+                        class_name = 'disease'
+                        confidence = prob_disease
+                    elif stress_passed:
+                        class_name = 'stress'
+                        confidence = prob_stress
+                    else:
+                        # Se nessuna anomalia supera la soglia, la foglia è sana
                         class_name = 'healthy'
-                        # Ricalcola la confidenza come la probabilità della classe healthy
-                        healthy_idx = [k for k, v in cls_results[0].names.items() if v == 'healthy'][0]
-                        confidence = float(probs.data[healthy_idx])
+                        confidence = prob_healthy
                     
                     # Assegna colore e contatore in base alla predizione dello Stage 2
                     if class_name == 'healthy':
@@ -200,9 +278,27 @@ class VineyardAnalyst:
         
         return liters_per_meter * total_row_length_m
 
-    def analyze_json(self, image_path, save_name, depth_uncertainty_pct=10.0, total_row_meters=100, disease_threshold=0.95):
+    def analyze_json(
+        self,
+        image_path,
+        save_name,
+        depth_uncertainty_pct=10.0,
+        total_row_meters=100,
+        disease_threshold=DEFAULT_INFERENCE_THRESHOLDS['disease_threshold'],
+        stress_threshold=DEFAULT_INFERENCE_THRESHOLDS['stress_threshold'],
+        grape_confidence=DEFAULT_INFERENCE_THRESHOLDS['grape_confidence'],
+        leaf_confidence=DEFAULT_INFERENCE_THRESHOLDS['leaf_confidence']
+    ):
         """Metodo principale per la Dashboard: esegue l'analisi e ritorna un dizionario JSON"""
-        res_grape, res_disease = self.run_inference(image_path, save_path=save_name, print_prediction=False, disease_threshold=disease_threshold)
+        res_grape, res_disease = self.run_inference(
+            image_path,
+            save_path=save_name,
+            print_prediction=False,
+            grape_confidence=grape_confidence,
+            leaf_confidence=leaf_confidence,
+            disease_threshold=disease_threshold,
+            stress_threshold=stress_threshold
+        )
         
         # Calcola i litri stimati
         liters = self.estimate_photo_liters(res_grape, 640)
@@ -239,26 +335,56 @@ class VineyardAnalyst:
         }
 
 if __name__ == '__main__':
-    import sys
+    import argparse
     import json
-    
-    # Inizializza l'analista con i percorsi predefiniti
-    analyst = VineyardAnalyst(MODEL_GRAPE_PATH, None, camera_params)
+
+    parser = argparse.ArgumentParser(description='Run EdgeVine vineyard computer vision inference.')
+    parser.add_argument('image_path', nargs='?')
+    parser.add_argument('save_name', nargs='?')
+    parser.add_argument('uncertainty_pct', nargs='?', type=float, default=10.0)
+    parser.add_argument('legacy_disease_threshold', nargs='?', type=float)
+    parser.add_argument('--disease-threshold', type=float, default=None)
+    parser.add_argument('--stress-threshold', type=float, default=DEFAULT_INFERENCE_THRESHOLDS['stress_threshold'])
+    parser.add_argument('--grape-confidence', type=float, default=DEFAULT_INFERENCE_THRESHOLDS['grape_confidence'])
+    parser.add_argument('--leaf-confidence', type=float, default=DEFAULT_INFERENCE_THRESHOLDS['leaf_confidence'])
+    parser.add_argument('--focal-length', type=float, default=DEFAULT_CAMERA_PARAMS['focal_length'])
+    parser.add_argument('--sensor-width', type=float, default=DEFAULT_CAMERA_PARAMS['sensor_width'])
+    parser.add_argument('--distance', type=float, default=DEFAULT_CAMERA_PARAMS['distance'])
+    args = parser.parse_args()
+
+    configured_camera_params = {
+        'focal_length': args.focal_length,
+        'sensor_width': args.sensor_width,
+        'distance': args.distance
+    }
 
     # Uso via CLI per integrazione con la Dashboard web
-    if len(sys.argv) > 2:
+    if args.image_path and args.save_name:
         try:
-            img_path = sys.argv[1]
-            out_name = sys.argv[2]
-            uncertainty = float(sys.argv[3]) if len(sys.argv) > 3 else 10.0
-            disease_thresh = float(sys.argv[4]) if len(sys.argv) > 4 else 0.95
-            result = analyst.analyze_json(img_path, out_name, depth_uncertainty_pct=uncertainty, disease_threshold=disease_thresh)
+            analyst = VineyardAnalyst(MODEL_GRAPE_PATH, None, configured_camera_params)
+            disease_thresh = (
+                args.disease_threshold
+                if args.disease_threshold is not None
+                else args.legacy_disease_threshold
+                if args.legacy_disease_threshold is not None
+                else 0.95
+            )
+            result = analyst.analyze_json(
+                args.image_path,
+                args.save_name,
+                depth_uncertainty_pct=args.uncertainty_pct,
+                disease_threshold=disease_thresh,
+                stress_threshold=args.stress_threshold,
+                grape_confidence=args.grape_confidence,
+                leaf_confidence=args.leaf_confidence
+            )
             print(json.dumps(result))
         except Exception as e:
             print(json.dumps({"success": False, "error": str(e)}))
-            sys.exit(1)
+            raise SystemExit(1)
     else:
         # Esecuzione di test standalone locale
+        analyst = VineyardAnalyst(MODEL_GRAPE_PATH, None, configured_camera_params)
         test_path = os.path.join(BASE_DIR, 'images', 'image copy 2.png')
         if not os.path.exists(test_path):
             test_path = os.path.join(BASE_DIR, 'image.png')
@@ -271,4 +397,4 @@ if __name__ == '__main__':
             print(f"    - Stress: {analyst.last_stress_count}")
             print(f"    - Disease: {analyst.last_disease_count}")
         else:
-            print("Usage: python inference.py <image_path> <save_name> [uncertainty_pct]")
+            print("Usage: python inference.py <image_path> <save_name> [uncertainty_pct] [disease_threshold] [--grape-confidence 0-1] [--leaf-confidence 0-1] [--focal-length mm] [--sensor-width mm] [--distance mm]")
