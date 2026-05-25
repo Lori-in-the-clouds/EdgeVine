@@ -15,6 +15,9 @@ EdgeVine is an advanced precision viticulture platform that seamlessly integrate
 - [👁️ 4. CV Pipeline](#️-4-cv-pipeline)
   - [4.1. Yield Estimation (Mathematical Model)](#41-yield-estimation-mathematical-model)
 - [🧠 5. Predictive Analytics \& Telemetry Forecasting](#-5-predictive-analytics--telemetry-forecasting)
+  - [📈 5.1. Soil Moisture (72h Forecast)](#-51-soil-moisture-72h-forecast)
+  - [🌡️ 5.2. Ambient Temperature (48h Forecast)](#️-52-ambient-temperature-48h-forecast)
+  - [🚨 5.3. Preemptive Alarm System](#-53-preemptive-alarm-system)
 - [🚀 6. Getting Started](#-6-getting-started)
   - [🛠️ 6.1. Quick Start in 3 Steps](#️-61-quick-start-in-3-steps)
 
@@ -172,12 +175,38 @@ $$L = \left(\frac{\sum_{i=1}^{N}m_i}{1000}\right) \cdot \eta_{\text{yield}}$$
 
 ---
 ## 🧠 5. Predictive Analytics & Telemetry Forecasting
-EdgeVine leverages historical sensor data to anticipate critical climate and soil changes before they happen.
-- **Soil Moisture (72h Forecast)**: Prophet models the trend using daily/weekly seasonal variations, treating temperature and rain forecasts as dynamic regressors to predict soil dryness.
-- **Ambient Temperature (48h Forecast)**: Prophet fits daily temperature curves, utilizing relative air humidity as a regressor to foresee sudden thermal shifts.
 
-Preventive Alarms: The generated prediction curves ($y_{\text{hat}}$ and its confidence intervals) are evaluated against agricultural thresholds. If values are predicted to breach safety margins (e.g., moisture falling below capacity or temperatures hitting $\le 2^\circ\text{C}$), the dashboard instantly flags a preemptive warning, allowing winemakers to intervene hours before the event actually occurs.
-   
+EdgeVine doesn't just monitor the present—it anticipates the future. By feeding historical timeseries telemetry into robust **Facebook Prophet** forecasting models, the platform predicts critical soil and atmospheric changes before they can impact crop health.
+
+> [!TIP]
+> **Model Development & Testing:**
+> The complete training pipeline, parameter tuning, and exploratory data analysis (EDA) for these forecasting models are documented in the experimental Jupyter Notebook: [prophet_analysis.ipynb](Predictions/prophet_analysis.ipynb).
+
+### 📈 5.1. Soil Moisture (72h Forecast)
+Predicts soil dryness trends to optimize automated irrigation schedules and prevent hydric stress.
+* 🔮 **Forecasting Window:** 72 Hours ahead.
+* ⚙️ **Mathematical Modeling:** Prophet captures daily and weekly seasonal variations. 
+* 🌦️ **Dynamic Regressors:** To maximize accuracy, the model treats future **ambient temperature** and **meteorological rain forecasts** as dynamic external regressors.
+
+### 🌡️ 5.2. Ambient Temperature (48h Forecast)
+Foresees sudden thermal shifts to protect vulnerable shoots from frost damage and heat waves.
+* 🔮 **Forecasting Window:** 48 Hours ahead.
+* ⚙️ **Mathematical Modeling:** Fits diurnal temperature curves (day/night cycles).
+* 💧 **Dynamic Regressors:** Utilizes **relative air humidity** as a dynamic regressor to anticipate microclimate shifts.
+
+
+### 🚨 5.3. Preemptive Alarm System
+
+The generated prediction curves ($\hat{y}$) and their corresponding uncertainty intervals (confidence bands) are continuously evaluated in real-time against customizable agronomic safety limits.
+
+> [!WARNING]
+> **Preemptive Alerts & Active Intervention:**
+> If a forecasted curve is projected to breach a safety threshold within its lookahead window, the central console instantly flags a preemptive alert:
+> * 💧 **Drought Warning:** Forecasted soil moisture falling below critical field capacity.
+> * ❄️ **Frost Alert:** Forecasted temperatures hitting $\le 2^\circ\text{C}$ (triggering active frost-protection measures).
+> 
+> Winemakers are notified **hours before the event actually occurs**, turning reactive crisis management into proactive, data-driven crop protection.
+
 ---
 
 ## 🚀 6. Getting Started
