@@ -12,6 +12,8 @@ __pycache__/
 vineyard-dashboard/.idea/
 vineyard-dashboard/.astro/
 vineyard-dashboard/dist/
+CV/dataset-leaf-disease-classification-v4
+docs
 *.jpg
 last.pt
 train.cache

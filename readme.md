@@ -3,13 +3,19 @@
 EdgeVine is an advanced precision viticulture platform that seamlessly integrates IoT telemetry, predictive analytics, and Computer Vision to monitor vineyard health and estimate wine yield in real-time.
 
 ## Table of Contents
-- [🎯 1. Overview](#1-overview)
-- [🔌 2. Hardware Implementation & Setup](#2-hardware-implementation-setup)
-- [📊 3. Dashboard](#3-dashboard)
-- [👁️ 4. CV Pipeline](#4-cv-pipeline)
-    - [4.1. Yield Estimation (Mathematical Model)](#41-yield-estimation-mathematical-model)
-- [🧠 5. Predictive Analytics & Telemetry Forecasting](#5-predictive-analytics-telemetry-forecasting)
-- [🚀 6. Getting Started](#6-getting-started)
+- [Table of Contents](#table-of-contents)
+- [🎯 1. Overview](#-1-overview)
+- [🔌 2. Hardware Implementation \& Setup](#-2-hardware-implementation--setup)
+- [📊 3. Dashboard](#-3-dashboard)
+  - [🗺️ 3.1. Interactive Map (Vigna Layout Editor)](#️-31-interactive-map-vigna-layout-editor)
+  - [📢 3.2. Neighbor Alerts Page](#-32-neighbor-alerts-page)
+  - [📈 3.3. Comprehensive Statistics](#-33-comprehensive-statistics)
+  - [📸 3.4. Manual Inference Console](#-34-manual-inference-console)
+  - [⚙️ 3.5. Unified Settings](#️-35-unified-settings)
+- [👁️ 4. CV Pipeline](#️-4-cv-pipeline)
+  - [4.1. Yield Estimation (Mathematical Model)](#41-yield-estimation-mathematical-model)
+- [🧠 5. Predictive Analytics \& Telemetry Forecasting](#-5-predictive-analytics--telemetry-forecasting)
+- [🚀 6. Getting Started](#-6-getting-started)
 
 ---
 
@@ -80,14 +86,54 @@ To complete
 ---
 
 ## 📊 3. Dashboard
-The EdgeVine Dashboard is built with **Astro** and **React**, serving as a unified precision viticulture control panel:
+EdgeVine features a responsive, real-time decision center powered by Astro and React for precision viticulture management.
 
-- **Interactive Map**: Built with Leaflet to draw sector boundaries, configure row grid layouts (spacing and orientation), and place sentinel nodes.
-- **Telemetry Console**: Displays real-time sensor metrics (temperature, humidity, soil moisture) with instant threshold violation alerts.
-- **Vision Console**: Allows users to upload field photos or view active camera feeds with immediate disease and grape cluster overlays.
-- **Predictive Panel**: Plots 72-hour soil moisture and 48-hour temperature curves to anticipate weather and drought risks.
-- **System Settings**: Configures environmental thresholds, camera optical constants, and the depth uncertainty percentage.
+### 🗺️ 3.1. Interactive Map (Vigna Layout Editor)
+Draw sector boundaries, configure row spacing/orientation, and place IoT sentinel nodes interactively. Sectors dynamically update color based on CV health diagnostics and sensor alerts.
 
+<p align="center">
+  <img src="vineyard-dashboard/public/readme_source/main_dashboard.webp" width="900" alt="Interactive Map" style="border-radius: 8px;" />
+</p>
+
+---
+
+### 📢 3.2. Neighbor Alerts Page
+A regional bulletin system allowing growers to publish and propagate localized phytosanitary, frost, or weather warnings to neighboring vineyards in the network.
+
+<p align="center">
+  <img src="vineyard-dashboard/public/readme_source/report.webp" width="900" alt="Neighbor Alerts" style="border-radius: 8px;" />
+</p>
+
+---
+
+### 📈 3.3. Comprehensive Statistics
+A centralized analysis console plotting real-time telemetry curves, future 72-hour soil moisture and 48-hour temperature AI forecasts (Prophet), and automated harvest yield estimations.
+
+<p align="center">
+  <img src="vineyard-dashboard/public/readme_source/statistics.webp" width="900" alt="Statistics Hub" style="border-radius: 8px; border: 1px solid #eaecef;" />
+</p>
+
+---
+
+### 📸 3.4. Manual Inference Console
+An interactive workspace to drag-and-drop crop photographs and run on-demand YOLOv8 inference for instant leaf health diagnostics and cluster weight calculations.
+
+<p align="center">
+  <img src="vineyard-dashboard/public/readme_source/manual_vision.webp" width="900" alt="Manual Inference" style="border-radius: 8px;" />
+</p>
+
+---
+
+### ⚙️ 3.5. Unified Settings
+Fine-tune global sensor alert limits, camera spatial calibration constants (focal length, distance), and predictive anomaly thresholds.
+
+<p align="center">
+  <img src="docs/assets/dashboard_settings.webp" width="900" alt="Unified Settings" style="border-radius: 8px;" />
+</p>
+
+
+> [!NOTE] Curious to see EdgeVine in action?
+> 🎥 **[Watch the Complete Demo Video (MP4)](docs/assets/full_demo.mp4)**
 ---
 
 ## 👁️ 4. CV Pipeline
