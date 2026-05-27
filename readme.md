@@ -174,7 +174,7 @@ Derives the actual physical width ($w_i$) and height ($h_i$) of the grape cluste
 
 3. **Biomass Mass Estimation ($m_i$):** Approximates the cluster's physical depth as 10% of its physical area. Multiplying by the biological grape density ($\rho_{\text{grape}} = 0.8\text{ g/cm}^3$) yields the estimated cluster weight in grams:
 
-    $$ m_i = (w_i \cdot h_i \cdot 0.1) \cdot \rho_{\text{grape}}$$
+    $$m_i=(w_i \cdot h_i \cdot 0.1)\cdot\rho_{\text{grape}}$$
 
 4. **Final Wine Yield ($L$):** Aggregates the weight of all $N$ detected clusters, scaling the total biomass by the chemical wine conversion efficiency ($\eta_{\text{yield}} = 0.7$) to forecast the yield in liters:
 
