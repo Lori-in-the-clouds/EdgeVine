@@ -1,6 +1,5 @@
 import json
 import os
-import re
 import time
 
 import psycopg
@@ -16,59 +15,8 @@ POSTGRES_DB = os.getenv("POSTGRES_DB", "sensori")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "sensore_user")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "sensore_password")
 
-VINEYARD_ID = int(os.getenv("VINEYARD_ID", "1"))
-VINEYARD_NAME = os.getenv("VINEYARD_NAME", f"Vineyard {VINEYARD_ID}")
 
-
-def parse_node_number(device_id):
-    match = re.search(r"(\d+)", str(device_id))
-    return int(match.group(1)) if match else 0
-
-
-def ensure_vineyard(cur):
-    cur.execute(
-        """
-        INSERT INTO vineyard (id, name, owner, altitude, latitude, longitude)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        ON CONFLICT (id) DO NOTHING
-        """,
-        (VINEYARD_ID, VINEYARD_NAME, "Serial Bridge", 0, 0, 0),
-    )
-
-
-def get_or_create_monitoring_node(cur, device_id):
-    cur.execute(
-        """
-        SELECT id
-        FROM monitoring_node
-        WHERE vineyard_id = %s AND (external_id = %s OR number::text = %s)
-        LIMIT 1
-        """,
-        (VINEYARD_ID, str(device_id), str(device_id)),
-    )
-    row = cur.fetchone()
-    if row:
-        return row[0]
-
-    node_number = parse_node_number(device_id)
-    cur.execute(
-        """
-        INSERT INTO monitoring_node (number, vineyard_id, external_id, name)
-        VALUES (%s, %s, %s, %s)
-        ON CONFLICT (vineyard_id, number)
-        DO UPDATE SET
-            external_id = COALESCE(monitoring_node.external_id, EXCLUDED.external_id),
-            name = COALESCE(monitoring_node.name, EXCLUDED.name),
-            updated_at = CURRENT_TIMESTAMP
-        RETURNING id
-        """,
-        (node_number, VINEYARD_ID, str(device_id), f"Node {device_id}"),
-    )
-    return cur.fetchone()[0]
-
-
-def insert_measurement(cur, device_id, temperature, humidity, moisture):
-    monitoring_node_id = get_or_create_monitoring_node(cur, device_id)
+def insert_measurement(cur, vineyard_id, device_id, temperature, humidity, moisture):
     cur.execute(
         """
         INSERT INTO sensor_measurements (
@@ -81,7 +29,7 @@ def insert_measurement(cur, device_id, temperature, humidity, moisture):
         )
         VALUES (%s, %s, %s, %s, %s, NOW())
         """,
-        (monitoring_node_id, VINEYARD_ID, temperature, humidity, moisture),
+        (device_id, vineyard_id, temperature, humidity, moisture),
     )
 
 
@@ -96,38 +44,41 @@ def main():
         password=POSTGRES_PASSWORD,
     )
 
-    with conn.cursor() as cur:
-        ensure_vineyard(cur)
-    conn.commit()
-
     while True:
         line = ser.readline()
 
         if not line:
             continue
 
+        decoded = line.decode("utf-8").strip()
         try:
-            decoded = line.decode("utf-8").strip()
             data = json.loads(decoded)
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON: {e}")
+            continue
 
-            print(f"Received: {data}")
+        print(f"Received: {data}")
 
-            with conn.cursor() as cur:
-                insert_measurement(
-                    cur,
-                    data["id"],
-                    data["temperature"],
-                    data["humidity"],
-                    data["moisture"],
-                )
-            conn.commit()
+        if data["type"] == "measurement":
+            try:
+                with conn.cursor() as cur:
+                    insert_measurement(
+                        cur,
+                        vineyard_id=data["vineyard_id"],
+                        device_id=data["id"],
+                        temperature=data["temperature"],
+                        humidity=data["humidity"],
+                        moisture=data["moisture"],
+                    )
+                conn.commit()
+            except psycopg.Error as e:
+                conn.rollback()
+                print(f"Database error: {e}")
+
             print("Sensor measurement inserted into database.")
 
-        except (json.JSONDecodeError, KeyError) as e:
-            print(f"Error parsing data: {e}")
-        except psycopg.Error as e:
-            conn.rollback()
-            print(f"Database error: {e}")
+        if data["type"] == "Request":
+            print(f"Node {data['id']} status: {data['status']}")
         time.sleep(1)
 
 
