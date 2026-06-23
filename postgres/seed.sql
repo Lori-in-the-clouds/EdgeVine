@@ -2329,3 +2329,56 @@ VALUES ('vision', '{
 }'::jsonb)
 ON CONFLICT (key) DO UPDATE
 SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP;
+
+INSERT INTO network_alerts (
+    vineyard_id,
+    source_latitude,
+    source_longitude,
+    alert_type,
+    title,
+    description,
+    created_at
+)
+SELECT
+    1,
+    seed_alert.source_latitude,
+    seed_alert.source_longitude,
+    seed_alert.alert_type,
+    seed_alert.title,
+    seed_alert.description,
+    seed_alert.created_at
+FROM (
+    VALUES
+        (
+            43.4753::float,
+            11.3276::float,
+            'infestation',
+            'Spider Mites Outbreak',
+            'Cluster identified near creek bed. Rapid spread reported.',
+            NOW() - INTERVAL '2 hours'
+        ),
+        (
+            43.4553::float,
+            11.3346::float,
+            'hydraulic',
+            'Irrigation Pump Failure',
+            'Neighboring estate reports main pump pressure drop.',
+            NOW() - INTERVAL '5 hours'
+        ),
+        (
+            43.4633::float,
+            11.3126::float,
+            'environmental',
+            'Active Storm Alert',
+            'Extreme temperatures detected. Humidity drop reported.',
+            NOW()
+        )
+) AS seed_alert(source_latitude, source_longitude, alert_type, title, description, created_at)
+WHERE EXISTS (SELECT 1 FROM vineyard WHERE id = 1)
+  AND NOT EXISTS (
+      SELECT 1
+      FROM network_alerts existing
+      WHERE existing.vineyard_id = 1
+        AND existing.title = seed_alert.title
+        AND existing.alert_type = seed_alert.alert_type
+  );

@@ -14,17 +14,88 @@ import {
 import { renderToStaticMarkup } from 'react-dom/server';
 import 'leaflet/dist/leaflet.css';
 
+type AlertType = 'infestation' | 'hydraulic' | 'environmental';
+
 interface NetworkAlert {
   id: string;
-  type: 'infestation' | 'hydraulic' | 'environmental';
+  vineyardId: number;
+  type: AlertType;
   title: string;
   distance: string;
+  distanceKm: number;
   time: string;
   description: string;
   lat: number;
   lng: number;
   icon: React.ReactNode;
   iconColor: string;
+}
+
+interface AlertApiRecord {
+  id: string;
+  vineyardId: number;
+  vineyardName?: string;
+  type: AlertType;
+  title: string;
+  description: string;
+  lat: number;
+  lng: number;
+  distanceKm: number;
+  createdAt: string;
+}
+
+function getAlertVisuals(type: AlertType) {
+  if (type === 'infestation') {
+    return { icon: <Bug className="w-5 h-5" />, iconColor: 'text-pink-500' };
+  }
+
+  if (type === 'hydraulic') {
+    return { icon: <Droplets className="w-5 h-5" />, iconColor: 'text-emerald-500' };
+  }
+
+  return { icon: <CloudLightning className="w-5 h-5" />, iconColor: 'text-orange-500' };
+}
+
+function formatDistance(distanceKm: number) {
+  if (!Number.isFinite(distanceKm)) return '---';
+  if (distanceKm < 0.05) return 'Your Estate';
+  if (distanceKm < 1) return `${Math.round(distanceKm * 1000)}m away`;
+  return `${distanceKm.toFixed(1)}km away`;
+}
+
+function formatRelativeTime(createdAt: string) {
+  const timestamp = new Date(createdAt).getTime();
+  if (!Number.isFinite(timestamp)) return 'Now';
+
+  const diffMs = Date.now() - timestamp;
+  if (diffMs < 60_000) return 'Now';
+
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  if (diffMinutes < 60) return `${diffMinutes}m ago`;
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
+function toNetworkAlert(record: AlertApiRecord): NetworkAlert {
+  const visuals = getAlertVisuals(record.type);
+
+  return {
+    id: record.id,
+    vineyardId: record.vineyardId,
+    type: record.type,
+    title: record.title,
+    distance: formatDistance(record.distanceKm),
+    distanceKm: record.distanceKm,
+    time: formatRelativeTime(record.createdAt),
+    description: record.description,
+    lat: Number(record.lat),
+    lng: Number(record.lng),
+    ...visuals
+  };
 }
 
 export function AlertsView() {
@@ -40,45 +111,10 @@ export function AlertsView() {
   const [activeAlertId, setActiveAlertId] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [isConfigured, setIsConfigured] = useState(false);
-  
-  const [alerts, setAlerts] = useState<NetworkAlert[]>([
-    {
-      id: '1',
-      type: 'infestation',
-      title: 'Spider Mites Outbreak',
-      distance: '1.8km away',
-      time: '2h ago',
-      description: 'Cluster identified near creek bed. Rapid spread reported.',
-      lat: 43.4753,
-      lng: 11.3276,
-      icon: <Bug className="w-5 h-5" />,
-      iconColor: 'text-pink-500'
-    },
-    {
-      id: '2',
-      type: 'hydraulic',
-      title: 'Irrigation Pump Failure',
-      distance: '4.1km away',
-      time: '5h ago',
-      description: 'Neighboring estate reports main pump pressure drop.',
-      lat: 43.4553,
-      lng: 11.3346,
-      icon: <Droplets className="w-5 h-5" />,
-      iconColor: 'text-emerald-500'
-    },
-    {
-      id: '3',
-      type: 'environmental',
-      title: 'Active Storm Alert',
-      distance: '---',
-      time: 'Now',
-      description: 'Extreme temperatures detected. Humidity drop reported.',
-      lat: 43.4633, 
-      lng: 11.3126,
-      icon: <CloudLightning className="w-5 h-5" />,
-      iconColor: 'text-orange-500'
-    }
-  ]);
+  const [isFeedLoading, setIsFeedLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<NetworkAlert[]>([]);
 
   const [formData, setFormData] = useState({
     type: 'infestation' as const,
@@ -121,6 +157,47 @@ export function AlertsView() {
     };
     fetchConfig();
   }, []);
+
+  useEffect(() => {
+    if (!isConfigured || !vineyardPos) {
+      setAlerts([]);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const fetchAlerts = async () => {
+      try {
+        setIsFeedLoading(true);
+        setFeedError(null);
+
+        const params = new URLSearchParams({
+          lat: String(vineyardPos[0]),
+          lng: String(vineyardPos[1]),
+          radiusKm: String(radiusKm)
+        });
+        const res = await fetch(`/api/alerts?${params.toString()}`, {
+          signal: controller.signal
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Failed to load alerts');
+        }
+
+        setAlerts((data.data || []).map(toNetworkAlert));
+      } catch (e: any) {
+        if (e.name === 'AbortError') return;
+        setFeedError(e.message || 'Failed to load alerts');
+      } finally {
+        if (!controller.signal.aborted) setIsFeedLoading(false);
+      }
+    };
+
+    fetchAlerts();
+
+    return () => controller.abort();
+  }, [isConfigured, radiusKm, vineyardPos]);
 
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
@@ -223,23 +300,44 @@ export function AlertsView() {
     if (bounds.isValid()) mapInstanceRef.current.fitBounds(bounds, { padding: [100, 100], animate: true });
   }, [isMapReady, radiusKm, vineyardPos, alerts, isConfigured]);
 
-  const handleReportIssue = () => {
-    if (!vineyardPos) return;
-    const newAlert: NetworkAlert = {
-      id: Math.random().toString(36).substr(2, 9),
-      type: formData.type,
-      title: formData.title || (formData.type === 'infestation' ? 'Manual Pest Report' : 'Health & Nutrition Report'),
-      distance: 'Your Estate',
-      time: 'Just now',
-      description: formData.description,
-      lat: vineyardPos[0],
-      lng: vineyardPos[1],
-      icon: formData.type === 'infestation' ? <Bug className="w-5 h-5" /> : <Droplets className="w-5 h-5" />,
-      iconColor: formData.type === 'infestation' ? 'text-pink-500' : 'text-emerald-500'
-    };
-    setAlerts([newAlert, ...alerts]);
-    setShowReportModal(false);
-    setFormData({ type: 'infestation', title: '', description: '' });
+  const handleReportIssue = async () => {
+    if (!vineyardPos || isSubmitting) return;
+
+    try {
+      setIsSubmitting(true);
+      setFeedError(null);
+
+      const res = await fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: formData.type,
+          title: formData.title,
+          description: formData.description,
+          lat: vineyardPos[0],
+          lng: vineyardPos[1]
+        })
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to save alert');
+      }
+
+      setAlerts((currentAlerts) => [
+        toNetworkAlert({
+          ...data.data,
+          distanceKm: 0
+        }),
+        ...currentAlerts.filter((alert) => alert.id !== data.data.id)
+      ]);
+      setShowReportModal(false);
+      setFormData({ type: 'infestation', title: '', description: '' });
+    } catch (e: any) {
+      setFeedError(e.message || 'Failed to save alert');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -291,13 +389,22 @@ export function AlertsView() {
               <div className="px-2">
                 <h2 className="text-2xl font-manrope font-black text-white tracking-tight mb-1">Local Alerts Feed</h2>
                 <p className="text-white/40 font-inter text-[10px] font-semibold mb-8 uppercase tracking-[0.2em]">Reports within {radiusKm}KM Radius</p>
+                {feedError && (
+                  <p className="text-rose-400 text-[10px] font-bold mb-4 uppercase tracking-widest">{feedError}</p>
+                )}
               </div>
               <div ref={feedRef} className="flex-1 overflow-y-auto overflow-x-hidden px-2 custom-scrollbar flex flex-col gap-4 scroll-smooth pb-4">
-                {alerts.filter(a => {
-                  if (!vineyardPos) return false;
-                  const d = mapInstanceRef.current?.distance(vineyardPos, [a.lat, a.lng]) || 0;
-                  return d <= radiusKm * 1000;
-                }).map(alert => (
+                {isFeedLoading && alerts.length === 0 && (
+                  <div className="w-full rounded-[2rem] p-5 border bg-white/5 border-white/5 text-white/40 text-[11px] font-bold uppercase tracking-widest">
+                    Loading local alerts...
+                  </div>
+                )}
+                {!isFeedLoading && alerts.length === 0 && (
+                  <div className="w-full rounded-[2rem] p-5 border bg-white/5 border-white/5 text-white/40 text-[11px] font-bold uppercase tracking-widest">
+                    No alerts in this radius.
+                  </div>
+                )}
+                {alerts.map(alert => (
                   <div key={alert.id} id={`alert-${alert.id}`} className={`w-full rounded-[2rem] p-5 border transition-all duration-500 group cursor-pointer flex items-start gap-4 box-border ${activeAlertId === alert.id ? 'bg-white/15 border-white/20 shadow-2xl scale-[1.02]' : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10'}`} onClick={() => { setActiveAlertId(alert.id); mapInstanceRef.current?.setView([alert.lat, alert.lng], 15, { animate: true }); }}>
                     <div className={`w-12 h-12 rounded-2xl flex-shrink-0 flex items-center justify-center bg-stone-900/50 border border-white/10 shadow-inner ${alert.iconColor}`}>{alert.icon}</div>
                     <div className="flex-1 flex flex-col gap-1 min-w-0">
@@ -362,7 +469,7 @@ export function AlertsView() {
               <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center text-green-500"><AlertTriangle size={20} /></div>
               <div className="flex flex-col"><span className="text-[10px] font-black text-white uppercase italic tracking-wide text-green-500">Auto-Geolocation On</span><p className="text-[9px] text-stone-400 font-medium">Reporting from your vineyard's center.</p></div>
             </div>
-            <button onClick={handleReportIssue} disabled={!formData.description.trim()} className="w-full bg-[#228B22] hover:bg-[#2EB82E] disabled:opacity-30 text-white py-5 rounded-2xl font-manrope font-black text-xs uppercase tracking-[0.25em] flex items-center justify-center gap-3 transition-all active:scale-[0.98]">Send Report <Send size={16} /></button>
+            <button onClick={handleReportIssue} disabled={isSubmitting || !formData.description.trim()} className="w-full bg-[#228B22] hover:bg-[#2EB82E] disabled:opacity-30 text-white py-5 rounded-2xl font-manrope font-black text-xs uppercase tracking-[0.25em] flex items-center justify-center gap-3 transition-all active:scale-[0.98]">{isSubmitting ? 'Saving Report...' : 'Send Report'} <Send size={16} /></button>
           </div>
         </div>
       )}
