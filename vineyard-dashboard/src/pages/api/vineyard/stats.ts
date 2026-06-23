@@ -154,16 +154,33 @@ export const GET: APIRoute = async ({ url }) => {
     // 5. Logica Previsionale basata su AI
     const aiPrediction = await sql<any>(`
       WITH latest_ai AS (
-        SELECT DISTINCT ON (monitoring_node_id) estimated_liters
-        FROM computer_vision_data
-        WHERE estimated_liters IS NOT NULL
-        ORDER BY monitoring_node_id, timestamp DESC
+        SELECT DISTINCT ON (cv.monitoring_node_id)
+          cv.monitoring_node_id,
+          cv.estimated_liters
+        FROM computer_vision_data cv
+        WHERE cv.estimated_liters IS NOT NULL
+          AND cv.monitoring_node_id IS NOT NULL
+        ORDER BY cv.monitoring_node_id, cv.timestamp DESC, cv.id DESC
+      ),
+      latest_ai_by_sector AS (
+        SELECT
+          COALESCE(mn.sector_id, 'unassigned-node-' || mn.id::text) as sector_bucket,
+          la.estimated_liters
+        FROM latest_ai la
+        JOIN monitoring_node mn ON mn.id = la.monitoring_node_id
+      ),
+      sector_averages AS (
+        SELECT
+          sector_bucket,
+          AVG(estimated_liters) as sector_avg_liters
+        FROM latest_ai_by_sector
+        GROUP BY sector_bucket
       )
       SELECT 
-        SUM(estimated_liters) as total_predicted_liters,
-        SUM(estimated_liters * $1) as total_predicted_min,
-        SUM(estimated_liters * $2) as total_predicted_max
-      FROM latest_ai
+        SUM(sector_avg_liters) as total_predicted_liters,
+        SUM(sector_avg_liters * $1) as total_predicted_min,
+        SUM(sector_avg_liters * $2) as total_predicted_max
+      FROM sector_averages
     `, [uFactorMin, uFactorMax]);
 
     const leafHealthy = parseInt(healthData.rows[0].total_healthy || 0);
