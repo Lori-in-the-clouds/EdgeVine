@@ -10,10 +10,24 @@
 #define LORA_AUX 7
 #define LORA_M0 4
 #define LORA_M1 5
+#define BUTTON_PIN 8
+#define DEBOUNCE_DELAY 50
 
 LoRa_E220 lora(LORA_RX, LORA_TX, LORA_AUX, LORA_M0, LORA_M1);
 
 ArduinoLEDMatrix matrix;
+
+int lastReading = LOW;
+int buttonState = LOW;
+unsigned long lastChangeTime = 0;
+
+void sendRequest() {
+  JsonDocument json;
+  json["type"] = "request";
+  String msg;
+  serializeJson(json, msg);
+  Serial.println(msg);
+}
 
 void printText(const char* text) {
   String output = "     " + String(text);
@@ -34,6 +48,8 @@ void setup() {
   Serial.begin(9600);
   lora.begin();
   matrix.begin();
+
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
 
   delay(500);
   Serial.println("LoRa Receiver ready");
@@ -65,11 +81,19 @@ void loop() {
       }
     }
   }
+  
+  int buttonReading = digitalRead(BUTTON_PIN);
 
-  delay(10000);
-  JsonDocument json;
-  json["type"] = "request";
-  String msg;
-  serializeJson(json, msg);
-  Serial.println(msg);
+  if (buttonReading != lastReading) {
+    lastChangeTime = millis();
+    lastReading = buttonReading;
+  }
+
+  if ((millis() - lastChangeTime >= DEBOUNCE_DELAY) && (buttonReading != buttonState)) {
+    buttonState = buttonReading;
+
+    if (buttonState == HIGH) {
+      sendRequest();
+    }
+  }
 }
