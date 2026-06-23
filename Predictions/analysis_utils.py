@@ -15,7 +15,7 @@ from prophet import Prophet
 
 
 FORECAST_WINDOWS = {
-    "moisture": 72,
+    "moisture": 48,
     "temperature": 48,
 }
 
@@ -275,7 +275,7 @@ def plot_moisture_prediction(m_moisture, moisture_forecast):
 
     fig = plot_plotly(m_moisture, moisture_forecast)
     fig.update_layout(
-        title="Prediction: Soil Moisture (Next 72h)",
+        title="Prediction: Soil Moisture (Next 48h)",
         template="plotly_dark",
         xaxis_title="Time",
         yaxis_title="Moisture (%)",

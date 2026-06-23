@@ -16,7 +16,7 @@ EdgeVine is an advanced precision viticulture platform that seamlessly integrate
   - [🧠 4.1. Two-Stage YOLO Architecture](#-41-two-stage-yolo-architecture)
   - [📐 4.2. Yield Estimation (Mathematical Model)](#-42-yield-estimation-mathematical-model)
 - [🧠 5. Predictive Analytics \& Telemetry Forecasting](#-5-predictive-analytics--telemetry-forecasting)
-  - [📈 5.1. Soil Moisture (72h Forecast)](#-51-soil-moisture-72h-forecast)
+  - [📈 5.1. Soil Moisture (48h Forecast)](#-51-soil-moisture-48h-forecast)
   - [🌡️ 5.2. Ambient Temperature (48h Forecast)](#️-52-ambient-temperature-48h-forecast)
   - [🚨 5.3. Preemptive Alarm System](#-53-preemptive-alarm-system)
 - [🚀 6. Getting Started](#-6-getting-started)
@@ -65,7 +65,7 @@ flowchart TB
     LoRa --> MQTT
     MQTT -->|"Store Telemetry"| DB
     DB -->|"Retrieve History"| Prophet
-    Prophet -->|"72h and 48h Forecasts"| DB
+    Prophet -->|"48h Forecasts"| DB
 
     %% CV flows
     Cam -->|"Field Photos"| Astro
@@ -110,7 +110,7 @@ A regional bulletin system allowing growers to publish and propagate localized p
 
 
 ### 📈 3.3. Comprehensive Statistics
-A centralized analysis console plotting real-time telemetry curves, future 72-hour soil moisture and 48-hour temperature AI forecasts (Prophet), and automated harvest yield estimations.
+A centralized analysis console plotting real-time telemetry curves, future 48-hour soil moisture and temperature AI forecasts (Prophet), and automated harvest yield estimations.
 
 <p align="left">
   <img src="vineyard-dashboard/public/readme_source/statistics.webp" width="50%" alt="Statistics Hub" style="border-radius: 8px;" />
@@ -194,9 +194,9 @@ EdgeVine doesn't just monitor the present—it anticipates the future. By feedin
 > **Model Development & Testing:**
 > The complete training pipeline, parameter tuning, and exploratory data analysis (EDA) for these forecasting models are documented in the experimental [Jupyter Notebook](Predictions/prophet_analysis.ipynb).
 
-### 📈 5.1. Soil Moisture (72h Forecast)
+### 📈 5.1. Soil Moisture (48h Forecast)
 Predicts soil dryness trends to optimize automated irrigation schedules and prevent hydric stress.
-* 🔮 **Forecasting Window:** 72 Hours ahead.
+* 🔮 **Forecasting Window:** 48 Hours ahead.
 * ⚙️ **Mathematical Modeling:** Prophet captures daily and weekly seasonal variations. 
 * 🌦️ **Dynamic Regressors:** To maximize accuracy, the model treats future **ambient temperature** and **meteorological rain forecasts** as dynamic external regressors.
 
@@ -264,7 +264,6 @@ Follow these steps to deploy and access the EdgeVine platform on your local mach
 </div>
 
 ---
-
 
 
 

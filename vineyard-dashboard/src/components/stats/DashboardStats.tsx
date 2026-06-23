@@ -523,7 +523,7 @@ export function DashboardStats() {
               {/* TEMPERATURE PREDICTION */}
               <div className="bg-indigo-100 rounded-[2.5rem] p-8 shadow-sm border border-indigo-200/50 flex flex-col gap-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-manrope font-black text-lg text-stone-800 tracking-tight uppercase text-[11px] opacity-70">Temperature Forecast (48h)</h3>
+                  <h3 className="font-manrope font-black text-lg text-stone-800 tracking-tight uppercase text-[11px] opacity-70">Temperature Forecast</h3>
                 </div>
 
                 {predictions.temperature.alerts.status === 'ALARM' ? (
@@ -570,7 +570,7 @@ export function DashboardStats() {
               {/* MOISTURE PREDICTION */}
               <div className="bg-indigo-100 rounded-[2.5rem] p-8 shadow-sm border border-indigo-200/50 flex flex-col gap-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-manrope font-black text-lg text-stone-800 tracking-tight uppercase text-[11px] opacity-70">Soil Moisture Forecast (72h)</h3>
+                  <h3 className="font-manrope font-black text-lg text-stone-800 tracking-tight uppercase text-[11px] opacity-70">Soil Moisture Forecast</h3>
                 </div>
 
                 {predictions.moisture.alerts.status === 'ALARM' ? (
@@ -586,7 +586,7 @@ export function DashboardStats() {
                     <CheckCircle className="text-emerald-500 flex-shrink-0" size={24} />
                     <div>
                       <p className="font-bold text-emerald-700">Moisture Levels Stable</p>
-                      <p className="text-emerald-600 text-[11px] mt-1">No severe water stress predicted for the next 72 hours.</p>
+                      <p className="text-emerald-600 text-[11px] mt-1">No severe water stress predicted for the next 48 hours.</p>
                     </div>
                   </div>
                 )}
