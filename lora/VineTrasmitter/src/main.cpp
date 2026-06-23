@@ -52,7 +52,8 @@ void setup() {
   dht.begin();
 
   pinMode(MOISTUREPIN, INPUT);
-  
+
+  json["type"] = "measurement";
   json["id"] = ID;
   
   delay(500);
