@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import curses
 import json
+import math
 import os
 import sys
 import threading
@@ -27,6 +28,14 @@ POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "password")
 
 VINEYARD_ID = os.getenv("VINEYARD_ID", "1")
 MONITORING_NODE_ID = os.getenv("MONITORING_NODE_ID")
+
+DRY_SPELL_DISTANCE_KM = 12.5
+DRY_SPELL_BEARING_DEGREES = 62.0
+DRY_SPELL_VINEYARD_NAME = "Dry Spell Simulation Vineyard"
+DRY_SPELL_ALERT_TITLE = "Dry Spell Alert"
+DRY_SPELL_ALERT_DESCRIPTION = (
+    "Simulated nearby vineyard reports prolonged dry conditions and water stress risk."
+)
 
 
 def env_int(name: str, default: int) -> int:
@@ -66,6 +75,15 @@ PREVIEW_WINDOW_TITLE = os.getenv("PREVIEW_WINDOW_TITLE", "EdgeVine capture")
 class MonitoringNode:
     id: int
     label: str
+
+
+@dataclass(frozen=True)
+class DrySpellResult:
+    vineyard_id: int
+    alert_id: int
+    latitude: float
+    longitude: float
+    distance_km: float
 
 
 @dataclass(frozen=True)
@@ -406,6 +424,175 @@ def upload_capture(image_url: str, monitoring_node_id: int) -> int:
     if row is None:
         raise RuntimeError(f"Monitoring node {monitoring_node_id} was not found.")
     return int(row[0])
+
+
+def destination_point(
+    latitude: float,
+    longitude: float,
+    distance_km: float,
+    bearing_degrees: float,
+) -> tuple[float, float]:
+    earth_radius_km = 6371.0
+    lat_rad = math.radians(latitude)
+    lng_rad = math.radians(longitude)
+    bearing_rad = math.radians(bearing_degrees)
+    angular_distance = distance_km / earth_radius_km
+
+    target_lat_rad = math.asin(
+        math.sin(lat_rad) * math.cos(angular_distance)
+        + math.cos(lat_rad) * math.sin(angular_distance) * math.cos(bearing_rad)
+    )
+    target_lng_rad = lng_rad + math.atan2(
+        math.sin(bearing_rad) * math.sin(angular_distance) * math.cos(lat_rad),
+        math.cos(angular_distance) - math.sin(lat_rad) * math.sin(target_lat_rad),
+    )
+
+    target_lng_degrees = (math.degrees(target_lng_rad) + 540) % 360 - 180
+    return math.degrees(target_lat_rad), target_lng_degrees
+
+
+def create_dry_spell_alert() -> DrySpellResult:
+    with connect_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    latitude,
+                    longitude,
+                    COALESCE(name_vineyard, name) AS vineyard_name
+                FROM vineyard
+                ORDER BY CASE WHEN id = %s::integer THEN 0 ELSE 1 END, id ASC
+                LIMIT 1
+                """,
+                (VINEYARD_ID,),
+            )
+            reference_vineyard = cur.fetchone()
+            if reference_vineyard is None:
+                raise RuntimeError("No vineyard found in database.")
+
+            reference_id = int(reference_vineyard[0])
+            reference_latitude = float(reference_vineyard[1])
+            reference_longitude = float(reference_vineyard[2])
+            if not (
+                math.isfinite(reference_latitude)
+                and math.isfinite(reference_longitude)
+            ):
+                raise RuntimeError(f"Vineyard {reference_id} has invalid coordinates.")
+
+            dry_latitude, dry_longitude = destination_point(
+                reference_latitude,
+                reference_longitude,
+                DRY_SPELL_DISTANCE_KM,
+                DRY_SPELL_BEARING_DEGREES,
+            )
+
+            cur.execute(
+                """
+                SELECT id
+                FROM vineyard
+                WHERE owner = 'SerialBridge'
+                  AND name_vineyard = %s
+                ORDER BY id ASC
+                LIMIT 1
+                """,
+                (DRY_SPELL_VINEYARD_NAME,),
+            )
+            existing_vineyard = cur.fetchone()
+
+            if existing_vineyard is None:
+                cur.execute(
+                    """
+                    INSERT INTO vineyard (
+                        name,
+                        owner,
+                        altitude,
+                        latitude,
+                        longitude,
+                        name_vineyard,
+                        area
+                    )
+                    VALUES (%s, 'SerialBridge', 0, %s, %s, %s, '---')
+                    RETURNING id
+                    """,
+                    (
+                        DRY_SPELL_VINEYARD_NAME,
+                        dry_latitude,
+                        dry_longitude,
+                        DRY_SPELL_VINEYARD_NAME,
+                    ),
+                )
+                vineyard_id = int(cur.fetchone()[0])
+            else:
+                vineyard_id = int(existing_vineyard[0])
+                cur.execute(
+                    """
+                    UPDATE vineyard
+                    SET
+                        name = %s,
+                        owner = 'SerialBridge',
+                        latitude = %s,
+                        longitude = %s,
+                        name_vineyard = %s,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                    """,
+                    (
+                        DRY_SPELL_VINEYARD_NAME,
+                        dry_latitude,
+                        dry_longitude,
+                        DRY_SPELL_VINEYARD_NAME,
+                        vineyard_id,
+                    ),
+                )
+
+            cur.execute(
+                """
+                INSERT INTO network_alerts (
+                    vineyard_id,
+                    source_latitude,
+                    source_longitude,
+                    alert_type,
+                    title,
+                    description
+                )
+                VALUES (%s, %s, %s, 'hydraulic', %s, %s)
+                RETURNING id
+                """,
+                (
+                    vineyard_id,
+                    dry_latitude,
+                    dry_longitude,
+                    DRY_SPELL_ALERT_TITLE,
+                    DRY_SPELL_ALERT_DESCRIPTION,
+                ),
+            )
+            alert_id = int(cur.fetchone()[0])
+
+    return DrySpellResult(
+        vineyard_id=vineyard_id,
+        alert_id=alert_id,
+        latitude=dry_latitude,
+        longitude=dry_longitude,
+        distance_km=DRY_SPELL_DISTANCE_KM,
+    )
+
+
+def run_dry_spell_flow(state: AppState) -> None:
+    state.log("Creating dry spell simulation...")
+
+    try:
+        result = create_dry_spell_alert()
+    except Exception as exc:
+        state.log(f"Dry spell command failed: {exc}")
+        return
+
+    state.log(
+        "Dry spell alert "
+        f"{result.alert_id} saved for vineyard {result.vineyard_id} "
+        f"at {result.distance_km:.1f}km "
+        f"({result.latitude:.5f}, {result.longitude:.5f})."
+    )
 
 
 def import_opencv() -> Any:
@@ -795,6 +982,7 @@ def draw_tui(stdscr: curses.window, snapshot: AppSnapshot) -> None:
         "t  toggle terminal/serial log",
         "n  next monitoring node",
         "r  reload monitoring nodes",
+        "d  dry spell",
         "x  close photo windows",
         "q  quit",
     ]
@@ -864,6 +1052,8 @@ def run_tui(stdscr: curses.window, state: AppState, stop_event: threading.Event)
             state.select_next_node()
         elif key in (ord("r"), ord("R")):
             reload_monitoring_nodes(state)
+        elif key in (ord("d"), ord("D")):
+            run_dry_spell_flow(state)
         elif key in (ord("x"), ord("X")):
             close_preview_windows()
             state.log("Photo preview windows closed.")
