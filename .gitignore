@@ -39,7 +39,7 @@ CV/train_leaf_disease_classifier_nano/*
 !CV/train_leaf_disease_classifier_nano/weights/best.pt
 
 !resources/*
-!resources/images/*
+!resources/images/receiver_circuit.png
 
 *.png
 !BoxPR_curve.png
