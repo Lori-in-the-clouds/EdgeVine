@@ -6,6 +6,8 @@ EdgeVine is an advanced precision viticulture platform that seamlessly integrate
 - [Table of Contents](#table-of-contents)
 - [🎯 1. Overview](#-1-overview)
 - [🔌 2. Hardware Implementation \& Setup](#-2-hardware-implementation--setup)
+  - [1. Sentinel Units (Sensing Nodes)](#1-sentinel-units-sensing-nodes)
+  - [2. Receiver Unit (Central Gateway)](#2-receiver-unit-central-gateway)
 - [📊 3. Dashboard](#-3-dashboard)
   - [🗺️ 3.1. Interactive Map (Vigna Layout Editor)](#️-31-interactive-map-vigna-layout-editor)
   - [📢 3.2. Neighbor Alerts Page](#-32-neighbor-alerts-page)
@@ -43,7 +45,6 @@ flowchart TB
 
     subgraph Data_Pipeline ["Data Pipeline"]
         LoRa["LoRaWAN Gateway"]:::transport
-        MQTT["MQTT Broker"]:::transport
     end
 
     subgraph Data_Storage ["Database (PostgreSQL)"]
@@ -86,7 +87,38 @@ flowchart TB
 
 ## 🔌 2. Hardware Implementation & Setup
 
-To complete 
+
+
+### 1. Sentinel Units (Sensing Nodes)
+Each vineyard zone or sector requires an independent Sentinel node containing the following hardware component stack:
+
+| Component | Specifications / Model | Purpose |
+| :--- | :--- | :--- |
+| **Microcontroller Board** | Arduino Uno | Handles sensor polling and executes local transmission logic. |
+| **Wireless Radio Module** | E220-900T30D LoRa Module (+ Antenna) | Transmits long-range telemetry signals across vineyard zones. |
+| **Soil Sensor** | Moisture Sensor | Measures localized soil moisture data to monitor field capacity. |
+| **Environmental Sensor** | External Temperature & Humidity Sensor | Collects microclimate data used as regressors for predictive analysis. |
+| **Vision Module** | Webcam | Captures real-time frames for YOLOv8 leaf health and grape detection. |
+  
+  <p align="center">
+    <img src="resources/images/sentinel_circuit.png" width="48%" />
+      <img src="resources/images/sentinel.png" width="48%" />
+    </p>
+
+### 2. Receiver Unit (Central Gateway)
+The central uplink gateway acts as the data hub and requires the following components:
+
+| Component | Specifications / Model | Purpose |
+| :--- | :--- | :--- |
+| **Microcontroller Board** | Arduino Uno | Manages incoming radio packets from multiple Sentinel nodes. |
+| **Wireless Radio Module** | E220-900T30D LoRa Module (+ Antenna) | Receives aggregated LoRa telemetry data from the field. |
+| **Visual Interface** | LED Matrix Display | Provides real-time status, network diagnostics, or urgent visual indicators. |
+| **Manual Trigger** | Push Button | General hardware interaction/diagnostic manual trigger. |
+       
+<p align="center">
+    <img src="resources/images/receiver_circuit.png" width="48%" />
+      <img src="resources/images/receiver.png" width="48%" />
+    </p>
 
 ---
 
