@@ -38,10 +38,17 @@ CV/train_leaf_disease_classifier_nano/*
 !CV/train_leaf_disease_classifier_nano/weights/
 !CV/train_leaf_disease_classifier_nano/weights/best.pt
 
-!resources/*
-!resources/images/receiver_circuit.png
+!resources/
+!resources/images/
 
-*.png
+# Includi i file specifici di resources
+!resources/slides.pdf
+!resources/images/receiver_circuit.png
+!resources/images/receiver.png
+!resources/images/sentinel_circuit.png
+!resources/images/sentinel.png
+
+
 !BoxPR_curve.png
 !confusion_matrix_normalized.png
 !results.png
